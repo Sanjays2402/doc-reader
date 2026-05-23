@@ -16,6 +16,7 @@
   const FONT_STORAGE_KEY = `${NS}:font-size`;
   const LH_STORAGE_KEY = `${NS}:line-height`;
   const FAMILY_STORAGE_KEY = `${NS}:font-family`;
+  const BOOKMARK_STORAGE_KEY = `${NS}:bookmarks`;
   const WIDTH_MIN = 560;
   const WIDTH_MAX = 1080;
   const WIDTH_DEFAULT = 720;
@@ -255,6 +256,30 @@
         background: linear-gradient(180deg, ${accent}22, ${accent}11);
         color: rgba(245,245,247,0.98);
         border-color: ${accent}33;
+      }
+      .toc-link {
+        position: relative;
+      }
+      .toc-link[data-bookmarked="1"] {
+        padding-right: 24px;
+      }
+      .toc-link[data-bookmarked="1"]::after {
+        content: "";
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        width: 10px;
+        height: 12px;
+        transform: translateY(-50%);
+        background: ${accent};
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%);
+        box-shadow: 0 0 6px ${accent}aa;
+        transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .toc-item[data-level="3"] .toc-link[data-bookmarked="1"]::after {
+        right: 12px;
+        width: 8px;
+        height: 10px;
       }
       .toc-empty {
         display: flex;
@@ -766,6 +791,7 @@
     }
     list.appendChild(frag);
     toc.setAttribute("data-visible", "1");
+    refreshBookmarkMarks();
   }
 
   function onTocClick(e) {
@@ -782,6 +808,7 @@
   function setActiveTocId(id) {
     if (id === tocActiveId) return;
     tocActiveId = id;
+    refreshBookmarkMarks();
     const root = document.querySelector(`[${ROOT_ATTR}]`);
     const links = root?.shadowRoot?.querySelectorAll(".toc-link");
     if (!links) return;
@@ -819,6 +846,123 @@
     for (const e of entries) {
       try { tocIO.observe(e.el); } catch {}
     }
+  }
+
+  // ---- Bookmarks ---------------------------------------------------------
+  // Persist a list of bookmarked section ids per page (canonical URL =
+  // origin + pathname so query strings & hashes don't fragment the list).
+  // The active TOC entry is the bookmark target; falls back to topmost
+  // heading currently above the viewport midline.
+  let bookmarkIds = new Set();
+
+  function canonicalUrlKey() {
+    try {
+      return location.origin + location.pathname;
+    } catch {
+      return location.href;
+    }
+  }
+
+  function pickCurrentSectionId() {
+    if (tocActiveId) return tocActiveId;
+    if (!tocEntries.length) return null;
+    // Find the last heading whose top is above the viewport's upper third.
+    const cutoff = (window.innerHeight || 800) * 0.33;
+    let pick = tocEntries[0].id;
+    for (const e of tocEntries) {
+      if (!e.el || !e.el.isConnected) continue;
+      const top = e.el.getBoundingClientRect().top;
+      if (top <= cutoff) pick = e.id;
+      else break;
+    }
+    return pick;
+  }
+
+  function findEntry(id) {
+    return tocEntries.find((e) => e.id === id) || null;
+  }
+
+  async function loadBookmarks() {
+    try {
+      const got = await chrome.storage?.local?.get?.(BOOKMARK_STORAGE_KEY);
+      const map = got?.[BOOKMARK_STORAGE_KEY];
+      const key = canonicalUrlKey();
+      const list = map && typeof map === "object" ? map[key] : null;
+      if (Array.isArray(list)) {
+        bookmarkIds = new Set(list.map((b) => (b && b.id) || "").filter(Boolean));
+      } else {
+        bookmarkIds = new Set();
+      }
+    } catch {
+      bookmarkIds = new Set();
+    }
+    refreshBookmarkMarks();
+  }
+
+  async function persistBookmarks(entries) {
+    try {
+      const got = await chrome.storage?.local?.get?.(BOOKMARK_STORAGE_KEY);
+      const map = (got && got[BOOKMARK_STORAGE_KEY]) || {};
+      const key = canonicalUrlKey();
+      if (!entries.length) delete map[key];
+      else map[key] = entries;
+      await chrome.storage?.local?.set?.({ [BOOKMARK_STORAGE_KEY]: map });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function readBookmarkEntries() {
+    try {
+      const got = await chrome.storage?.local?.get?.(BOOKMARK_STORAGE_KEY);
+      const map = got?.[BOOKMARK_STORAGE_KEY];
+      const list = map && typeof map === "object" ? map[canonicalUrlKey()] : null;
+      return Array.isArray(list) ? list.slice() : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function refreshBookmarkMarks() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const links = root?.shadowRoot?.querySelectorAll(".toc-link");
+    if (!links) return;
+    for (const a of links) {
+      const id = a.getAttribute("data-toc-id");
+      if (id && bookmarkIds.has(id)) a.setAttribute("data-bookmarked", "1");
+      else a.removeAttribute("data-bookmarked");
+    }
+  }
+
+  async function toggleBookmarkCurrentSection() {
+    if (!state.enabled || !state.supported) return null;
+    const id = pickCurrentSectionId();
+    if (!id) {
+      flashTypography("No section to bookmark");
+      return null;
+    }
+    const entries = await readBookmarkEntries();
+    const idx = entries.findIndex((b) => b && b.id === id);
+    let bookmarked;
+    if (idx >= 0) {
+      entries.splice(idx, 1);
+      bookmarkIds.delete(id);
+      bookmarked = false;
+    } else {
+      const entry = findEntry(id);
+      entries.push({
+        id,
+        text: entry?.text || (document.getElementById(id)?.textContent || "").trim() || id,
+        level: entry?.level || 2,
+        addedAt: Date.now(),
+      });
+      bookmarkIds.add(id);
+      bookmarked = true;
+    }
+    await persistBookmarks(entries);
+    refreshBookmarkMarks();
+    flashTypography(bookmarked ? "Bookmarked" : "Bookmark removed");
+    return { id, bookmarked };
   }
 
   function hideToc() {
@@ -1097,6 +1241,13 @@
         cycleFontFamily(1);
         return;
       }
+      // b bookmarks (or un-bookmarks) the current section.
+      if (e.key === "b" || e.code === "KeyB") {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleBookmarkCurrentSection();
+        return;
+      }
     }
     // Shift + = (i.e. "+") also bumps font size, since plus reads better.
     if (state.enabled && e.shiftKey && (e.key === "+" || (e.code === "Equal" && e.shiftKey))) {
@@ -1172,6 +1323,21 @@
           percent: state.enabled ? Math.max(0, progressLastPct) : 0,
         });
         return true;
+      case "doc-reader/bookmark-current":
+        toggleBookmarkCurrentSection().then((res) => sendResponse(res || { id: null, bookmarked: false }));
+        return true;
+      case "doc-reader/list-bookmarks":
+        readBookmarkEntries().then((entries) => sendResponse({
+          url: canonicalUrlKey(),
+          entries,
+        }));
+        return true;
+      case "doc-reader/is-section-bookmarked":
+        sendResponse({
+          id: pickCurrentSectionId(),
+          bookmarked: bookmarkIds.has(pickCurrentSectionId() || ""),
+        });
+        return true;
       case "doc-reader/toc":
         sendResponse({
           entries: tocEntries.map((e) => ({ id: e.id, text: e.text, level: e.level })),
@@ -1192,6 +1358,7 @@
     state.fontFamily = await loadFontFamily();
     applyWidth();
     applyTypography();
+    await loadBookmarks();
     const wasEnabled = await loadEnabled();
     if (wasEnabled) setEnabled(true, { flash: false });
   }
