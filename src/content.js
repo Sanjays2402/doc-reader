@@ -511,6 +511,268 @@
       }
       .hl-remove:hover svg { stroke: #ff9a9a; }
       .hl-remove:hover { background: rgba(255,154,154,0.10); }
+
+      /* ---- Liquid-glass control panel ------------------------------ */
+      .pill .gear {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        margin-left: 2px;
+        border-radius: 999px;
+        cursor: pointer;
+        color: rgba(245,245,247,0.78);
+        transition:
+          background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .pill .gear:hover { background: rgba(255,255,255,0.10); color: rgba(245,245,247,0.98); transform: rotate(22deg); }
+      .pill .gear:focus-visible { background: rgba(255,255,255,0.10); box-shadow: 0 0 0 2px ${accent}99; }
+      .pill .gear svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .pill[data-panel-open="1"] .gear { color: ${accent}; background: rgba(255,255,255,0.08); }
+
+      .panel {
+        position: fixed;
+        top: 60px;
+        right: 16px;
+        width: 296px;
+        pointer-events: auto;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro", sans-serif;
+        font-size: 12px;
+        letter-spacing: -0.01em;
+        line-height: 1.45;
+        color: rgba(245,245,247,0.94);
+        background: linear-gradient(180deg, rgba(22,22,28,0.72), rgba(14,14,18,0.64));
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 18px;
+        box-shadow:
+          0 24px 56px rgba(0,0,0,0.42),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(24px) saturate(150%);
+        -webkit-backdrop-filter: blur(24px) saturate(150%);
+        overflow: hidden;
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+        transform-origin: top right;
+        transition:
+          opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 2147483646;
+      }
+      .panel[data-visible="1"] {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      .panel::before {
+        content: "";
+        position: absolute;
+        inset: auto -30% -40% auto;
+        width: 260px;
+        height: 260px;
+        background: radial-gradient(closest-side, ${accent}30, transparent 70%);
+        filter: blur(36px);
+        pointer-events: none;
+      }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 16px 10px;
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(245,245,247,0.62);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        position: relative;
+      }
+      .panel-head svg { width: 14px; height: 14px; stroke: ${accent}; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .panel-head .panel-title { flex: 1; }
+      .panel-head .panel-close {
+        all: unset;
+        cursor: pointer;
+        width: 20px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        color: rgba(245,245,247,0.62);
+        transition: background 180ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .panel-close:hover { background: rgba(255,255,255,0.08); color: rgba(245,245,247,0.94); }
+      .panel-close:focus-visible { box-shadow: 0 0 0 2px ${accent}99; }
+      .panel-close svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
+      .panel-body { padding: 12px 16px 16px; position: relative; }
+      .panel-section { padding: 8px 0; }
+      .panel-section + .panel-section { border-top: 1px solid rgba(255,255,255,0.05); }
+      .panel-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .panel-label { font-size: 11px; color: rgba(245,245,247,0.62); font-weight: 500; }
+      .panel-value {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10.5px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        color: rgba(245,245,247,0.86);
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+        min-width: 52px;
+        text-align: center;
+      }
+
+      .panel input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 22px;
+        background: transparent;
+        margin: 0;
+        cursor: pointer;
+      }
+      .panel input[type="range"]::-webkit-slider-runnable-track {
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, ${accent}cc 0%, ${accent}cc var(--p, 0%), rgba(255,255,255,0.10) var(--p, 0%), rgba(255,255,255,0.10) 100%);
+      }
+      .panel input[type="range"]::-moz-range-track {
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.10);
+      }
+      .panel input[type="range"]::-moz-range-progress {
+        height: 4px;
+        border-radius: 999px;
+        background: ${accent}cc;
+      }
+      .panel input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #fff;
+        margin-top: -5px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.40), 0 0 0 1px rgba(0,0,0,0.20);
+        transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .panel input[type="range"]::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border: none;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.40), 0 0 0 1px rgba(0,0,0,0.20);
+      }
+      .panel input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
+      .panel input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px ${accent}66; }
+
+      .panel .segmented {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 1fr;
+        gap: 0;
+        padding: 3px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+      }
+      .panel .segmented button {
+        all: unset;
+        cursor: pointer;
+        padding: 6px 0;
+        text-align: center;
+        font-size: 11.5px;
+        font-weight: 500;
+        color: rgba(245,245,247,0.66);
+        border-radius: 8px;
+        transition:
+          background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .panel .segmented button:hover { color: rgba(245,245,247,0.92); }
+      .panel .segmented button:focus-visible { box-shadow: 0 0 0 2px ${accent}99; }
+      .panel .segmented button[data-active="1"] {
+        background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
+        color: rgba(245,245,247,0.98);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.12),
+          0 1px 2px rgba(0,0,0,0.30);
+      }
+      .seg-sans { font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif; }
+      .seg-serif { font-family: "Iowan Old Style", Charter, Georgia, serif; }
+      .seg-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+
+      .panel-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .panel-actions button {
+        all: unset;
+        flex: 1;
+        cursor: pointer;
+        padding: 9px 10px;
+        text-align: center;
+        font-size: 11.5px;
+        font-weight: 500;
+        color: rgba(245,245,247,0.86);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px;
+        transition:
+          background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .panel-actions button:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.14); }
+      .panel-actions button:focus-visible { box-shadow: 0 0 0 2px ${accent}99; }
+      .panel-actions .primary {
+        background: linear-gradient(180deg, ${accent}33, ${accent}1c);
+        border-color: ${accent}55;
+        color: rgba(245,245,247,0.98);
+      }
+      .panel-actions .primary:hover { background: linear-gradient(180deg, ${accent}44, ${accent}22); border-color: ${accent}88; }
+
+      .panel-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255,255,255,0.05);
+        color: rgba(245,245,247,0.52);
+        font-size: 10.5px;
+      }
+      .panel-foot .kbd {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: rgba(245,245,247,0.74);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .panel, .panel input[type="range"]::-webkit-slider-thumb,
+        .panel .segmented button, .panel-actions button, .pill .gear {
+          transition: none !important;
+        }
+      }
+      @media (max-width: 720px) {
+        .panel { width: calc(100vw - 32px); right: 16px; left: 16px; }
+      }
     `;
     const progress = document.createElement("div");
     progress.className = "progress";
@@ -528,6 +790,12 @@
       <span class="dot" aria-hidden="true"></span>
       <span class="label">Reader off</span>
       <span class="kbd" aria-hidden="true">⇧R</span>
+      <button type="button" class="gear" aria-label="Reader settings" aria-expanded="false" title="Settings (C)">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9 1.7 1.7 0 0 0 4.26 7.13l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z" />
+        </svg>
+      </button>
     `;
 
     const toc = document.createElement("nav");
@@ -547,10 +815,225 @@
       <ul class="toc-list" role="list"></ul>
     `;
 
+    const panel = document.createElement("section");
+    panel.className = "panel";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", "Reader settings");
+    panel.setAttribute("aria-hidden", "true");
+    panel.innerHTML = `
+      <header class="panel-head">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 5h11" />
+          <path d="M4 10h11" />
+          <path d="M4 15h7" />
+          <path d="M16 17l2.5 2.5L22 16" />
+        </svg>
+        <span class="panel-title">Reader settings</span>
+        <button type="button" class="panel-close" aria-label="Close settings" title="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6L6 18" />
+          </svg>
+        </button>
+      </header>
+      <div class="panel-body">
+        <div class="panel-section" data-pane="width">
+          <div class="panel-row">
+            <span class="panel-label">Width</span>
+            <span class="panel-value" data-out="width">${WIDTH_DEFAULT}px</span>
+          </div>
+          <input type="range" class="panel-slider" data-ctl="width"
+            min="${WIDTH_MIN}" max="${WIDTH_MAX}" step="${WIDTH_STEP}" value="${WIDTH_DEFAULT}"
+            aria-label="Maximum column width" />
+        </div>
+        <div class="panel-section" data-pane="font-size">
+          <div class="panel-row">
+            <span class="panel-label">Font size</span>
+            <span class="panel-value" data-out="font-size">${FONT_DEFAULT}px</span>
+          </div>
+          <input type="range" class="panel-slider" data-ctl="font-size"
+            min="${FONT_MIN}" max="${FONT_MAX}" step="${FONT_STEP}" value="${FONT_DEFAULT}"
+            aria-label="Font size" />
+        </div>
+        <div class="panel-section" data-pane="line-height">
+          <div class="panel-row">
+            <span class="panel-label">Line height</span>
+            <span class="panel-value" data-out="line-height">${LH_DEFAULT.toFixed(2)}</span>
+          </div>
+          <input type="range" class="panel-slider" data-ctl="line-height"
+            min="${LH_MIN}" max="${LH_MAX}" step="${LH_STEP}" value="${LH_DEFAULT}"
+            aria-label="Line height" />
+        </div>
+        <div class="panel-section" data-pane="family">
+          <div class="panel-row">
+            <span class="panel-label">Typeface</span>
+          </div>
+          <div class="segmented" role="radiogroup" aria-label="Typeface">
+            ${FAMILIES.map((f) => `
+              <button type="button" class="seg-${f.id}" role="radio" aria-checked="false" data-family="${f.id}">${f.label}</button>
+            `).join("")}
+          </div>
+        </div>
+        <div class="panel-actions">
+          <button type="button" data-action="reset">Reset</button>
+          <button type="button" class="primary" data-action="close">Done</button>
+        </div>
+        <div class="panel-foot">
+          <span>Toggle panel</span>
+          <span class="kbd">C</span>
+        </div>
+      </div>
+    `;
+
     shadow.appendChild(style);
     shadow.appendChild(progress);
     shadow.appendChild(toc);
     shadow.appendChild(pill);
+    shadow.appendChild(panel);
+    wirePanel(shadow);
+  }
+
+  // ---- Control panel wiring ----------------------------------------------
+  let panelDocClickAttached = false;
+  function wirePanel(shadow) {
+    const panel = shadow.querySelector(".panel");
+    const pill = shadow.querySelector(".pill");
+    if (!panel || !pill) return;
+    const gear = pill.querySelector(".gear");
+    gear?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      togglePanel();
+    });
+    panel.querySelector(".panel-close")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      hidePanel();
+    });
+    panel.querySelector('[data-action="close"]')?.addEventListener("click", (e) => {
+      e.preventDefault();
+      hidePanel();
+    });
+    panel.querySelector('[data-action="reset"]')?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await Promise.all([
+        setWidth(WIDTH_DEFAULT),
+        setFontSize(FONT_DEFAULT),
+        setLineHeight(LH_DEFAULT),
+        setFontFamily(FAMILY_DEFAULT),
+      ]);
+      syncPanel();
+    });
+    panel.querySelectorAll(".panel-slider").forEach((slider) => {
+      slider.addEventListener("input", () => {
+        const ctl = slider.getAttribute("data-ctl");
+        const v = parseFloat(slider.value);
+        if (!Number.isFinite(v)) return;
+        if (ctl === "width") setWidth(v);
+        else if (ctl === "font-size") setFontSize(v);
+        else if (ctl === "line-height") setLineHeight(v);
+        syncPanel();
+      });
+    });
+    panel.querySelectorAll('.segmented button[data-family]').forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-family");
+        if (id) setFontFamily(id).then(syncPanel);
+      });
+    });
+    // Click-outside closes the panel.
+    if (!panelDocClickAttached) {
+      document.addEventListener("mousedown", onPanelOutsideClick, true);
+      panelDocClickAttached = true;
+    }
+  }
+
+  function onPanelOutsideClick(e) {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const shadow = root?.shadowRoot;
+    const panel = shadow?.querySelector(".panel");
+    if (!panel || panel.getAttribute("data-visible") !== "1") return;
+    // The composed path crosses the shadow boundary so we can check both
+    // the panel and the gear button without leaking selectors.
+    const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+    for (const node of path) {
+      if (node === panel) return;
+      if (node instanceof Element && node.classList?.contains("gear")) return;
+    }
+    hidePanel();
+  }
+
+  function showPanel() {
+    if (!state.enabled) return;
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const shadow = root?.shadowRoot;
+    const panel = shadow?.querySelector(".panel");
+    const pill = shadow?.querySelector(".pill");
+    const gear = pill?.querySelector(".gear");
+    if (!panel) return;
+    syncPanel();
+    panel.setAttribute("data-visible", "1");
+    panel.setAttribute("aria-hidden", "false");
+    pill?.setAttribute("data-panel-open", "1");
+    gear?.setAttribute("aria-expanded", "true");
+    // Keep pill visible while panel is open.
+    pill?.setAttribute("data-visible", "1");
+    clearTimeout(pillHideTimer);
+  }
+
+  function hidePanel() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const shadow = root?.shadowRoot;
+    const panel = shadow?.querySelector(".panel");
+    const pill = shadow?.querySelector(".pill");
+    const gear = pill?.querySelector(".gear");
+    if (!panel) return;
+    panel.removeAttribute("data-visible");
+    panel.setAttribute("aria-hidden", "true");
+    pill?.removeAttribute("data-panel-open");
+    gear?.setAttribute("aria-expanded", "false");
+    // Let the pill auto-hide on its usual timer.
+    clearTimeout(pillHideTimer);
+    pillHideTimer = setTimeout(() => pill?.removeAttribute("data-visible"), 900);
+  }
+
+  function togglePanel() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const panel = root?.shadowRoot?.querySelector(".panel");
+    if (!panel) return;
+    if (panel.getAttribute("data-visible") === "1") hidePanel();
+    else showPanel();
+  }
+
+  function syncPanel() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const shadow = root?.shadowRoot;
+    const panel = shadow?.querySelector(".panel");
+    if (!panel) return;
+
+    const setSlider = (ctl, value, format) => {
+      const slider = panel.querySelector(`.panel-slider[data-ctl="${ctl}"]`);
+      const out = panel.querySelector(`.panel-value[data-out="${ctl}"]`);
+      if (slider) {
+        if (parseFloat(slider.value) !== value) slider.value = String(value);
+        const min = parseFloat(slider.min);
+        const max = parseFloat(slider.max);
+        const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+        slider.style.setProperty("--p", `${pct.toFixed(2)}%`);
+      }
+      if (out) out.textContent = format(value);
+    };
+
+    setSlider("width", state.width, (v) => `${Math.round(v)}px`);
+    setSlider("font-size", state.fontSize, (v) => `${v}px`);
+    setSlider("line-height", state.lineHeight, (v) => v.toFixed(2));
+
+    panel.querySelectorAll('.segmented button[data-family]').forEach((btn) => {
+      const active = btn.getAttribute("data-family") === state.fontFamily;
+      btn.setAttribute("aria-checked", active ? "true" : "false");
+      if (active) btn.setAttribute("data-active", "1");
+      else btn.removeAttribute("data-active");
+    });
   }
 
   // ---- Toggle --------------------------------------------------------------
@@ -578,12 +1061,14 @@
       root.removeAttribute("hidden");
       stripNoise();
       applySingleColumn();
+      syncPanel();
       buildToc();
       watchArticleForToc();
       startProgress();
       scheduleHighlightRestore();
     } else {
       stopProgress();
+      hidePanel();
       hideToc();
       hidePalette();
       clearAllHighlightMarks();
@@ -656,6 +1141,7 @@
     if (state.enabled) {
       applyWidth();
       flashWidth();
+      syncPanel();
     }
     if (opts.persist !== false) persistWidth(v);
     return v;
@@ -667,6 +1153,7 @@
     if (state.enabled) {
       applyTypography();
       flashTypography(`${v}px`);
+      syncPanel();
     }
     if (opts.persist !== false) persistFontSize(v);
     return v;
@@ -678,6 +1165,7 @@
     if (state.enabled) {
       applyTypography();
       flashTypography(`line ${v.toFixed(2)}`);
+      syncPanel();
     }
     if (opts.persist !== false) persistLineHeight(v);
     return v;
@@ -689,6 +1177,7 @@
     if (state.enabled) {
       applyTypography();
       flashTypography(familyLabel(v));
+      syncPanel();
     }
     if (opts.persist !== false) persistFontFamily(v);
     return v;
@@ -1756,6 +2245,13 @@
         setLineHeight(state.lineHeight + LH_STEP);
         return;
       }
+      // c toggles the liquid-glass control panel.
+      if (e.key === "c" || e.code === "KeyC") {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePanel();
+        return;
+      }
       // f cycles font family (sans -> serif -> mono).
       if (e.key === "f" || e.code === "KeyF") {
         e.preventDefault();
@@ -1918,6 +2414,18 @@
         highlightById = new Map();
         clearAllHighlightMarks();
         persistHighlights();
+        sendResponse({ ok: true });
+        return true;
+      case "doc-reader/toggle-panel":
+        togglePanel();
+        sendResponse({ open: document.querySelector(`[${ROOT_ATTR}]`)?.shadowRoot?.querySelector(".panel")?.getAttribute("data-visible") === "1" });
+        return true;
+      case "doc-reader/show-panel":
+        showPanel();
+        sendResponse({ ok: true });
+        return true;
+      case "doc-reader/hide-panel":
+        hidePanel();
         sendResponse({ ok: true });
         return true;
       case "doc-reader/toc":

@@ -80,6 +80,15 @@ for (const needle of [
   "progress-fill",
   "updateProgress",
   "Reading progress",
+  '.panel',
+  "togglePanel",
+  "syncPanel",
+  "data-panel-open",
+  "panel-slider",
+  'data-ctl="width"',
+  'data-ctl="font-size"',
+  'data-ctl="line-height"',
+  "doc-reader/toggle-panel",
 ]) {
   if (!contentSrc.includes(needle)) {
     console.error("content.js missing reader-toggle token:", needle);

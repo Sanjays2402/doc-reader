@@ -16,4 +16,4 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Highlight tool (4 colors, persisted per URL)
 - [x] Auto-detect dark mode preference
 - [x] Print-friendly stylesheet
-- [ ] Liquid-glass control panel
+- [x] Liquid-glass control panel
