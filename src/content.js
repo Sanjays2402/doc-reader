@@ -71,6 +71,10 @@
   const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
   const HEADING_ATTR = "data-doc-reader-heading";
   const META_ATTR = "data-doc-reader-meta";
+  const IMG_ATTR = "data-doc-reader-img";
+  const LIGHTBOX_ZOOM_MIN = 0.25;
+  const LIGHTBOX_ZOOM_MAX = 6;
+  const LIGHTBOX_ZOOM_STEP = 0.25;
   const READ_WPM = 230;
   const TOC_REBUILD_MS = 280;
   const PROGRESS_RAF_THROTTLE = true;
@@ -812,6 +816,163 @@
       @media (max-width: 720px) {
         .panel { width: calc(100vw - 32px); right: 16px; left: 16px; }
       }
+      /* Inline image lightbox with zoom + pan. Liquid-glass chrome,
+         frosted backdrop, accent-tinted ambient blob. */
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483646;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .lightbox[data-visible="1"] {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .lightbox-backdrop {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(120% 80% at 50% 40%, rgba(8,8,12,0.78), rgba(0,0,0,0.92));
+        backdrop-filter: blur(28px) saturate(140%);
+        -webkit-backdrop-filter: blur(28px) saturate(140%);
+        cursor: zoom-out;
+      }
+      .lightbox-backdrop::before {
+        content: "";
+        position: absolute;
+        inset: -10% -20% auto auto;
+        width: 60vmax;
+        height: 60vmax;
+        background: radial-gradient(closest-side, ${accent}33, transparent 70%);
+        filter: blur(48px);
+        pointer-events: none;
+      }
+      .lightbox-stage {
+        position: absolute;
+        inset: 56px 56px 96px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        user-select: none;
+        touch-action: none;
+      }
+      .lightbox-img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 10px;
+        box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+        transform: translate(0px, 0px) scale(1);
+        transform-origin: center center;
+        transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        cursor: zoom-in;
+        will-change: transform;
+      }
+      .lightbox-img[data-zoom-gt-one="1"] {
+        cursor: grab;
+        max-width: none;
+        max-height: none;
+      }
+      .lightbox-img[data-dragging="1"] {
+        cursor: grabbing;
+        transition: none;
+      }
+      .lightbox-bar {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        background: linear-gradient(180deg, rgba(22,22,28,0.72), rgba(14,14,18,0.62));
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 999px;
+        box-shadow:
+          0 18px 48px rgba(0,0,0,0.45),
+          inset 0 1px 0 rgba(255,255,255,0.06);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", system-ui, sans-serif;
+        font-size: 12px;
+        letter-spacing: -0.01em;
+        color: rgba(245,245,247,0.92);
+      }
+      .lb-sep {
+        width: 1px;
+        height: 18px;
+        background: rgba(255,255,255,0.12);
+        margin: 0 2px;
+      }
+      .lb-zoom {
+        min-width: 52px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        color: rgba(245,245,247,0.72);
+      }
+      .lb-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        color: rgba(245,245,247,0.92);
+        cursor: pointer;
+        transition:
+          background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .lb-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .lb-btn:hover { background: rgba(255,255,255,0.08); }
+      .lb-btn:focus-visible {
+        outline: none;
+        border-color: ${accent}99;
+        box-shadow: 0 0 0 2px ${accent}55;
+      }
+      .lb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      .lightbox-caption {
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: min(720px, calc(100vw - 96px));
+        padding: 8px 14px;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+        font-size: 12.5px;
+        letter-spacing: -0.01em;
+        line-height: 1.45;
+        color: rgba(245,245,247,0.82);
+        background: linear-gradient(180deg, rgba(22,22,28,0.66), rgba(14,14,18,0.56));
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        backdrop-filter: blur(18px) saturate(140%);
+        -webkit-backdrop-filter: blur(18px) saturate(140%);
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .lightbox-caption[data-empty="1"] { display: none; }
+      @media (max-width: 720px) {
+        .lightbox-stage { inset: 40px 16px 88px; }
+        .lightbox-caption { top: 10px; max-width: calc(100vw - 32px); }
+      }
     `;
     const progress = document.createElement("div");
     progress.className = "progress";
@@ -939,7 +1100,40 @@
     shadow.appendChild(toc);
     shadow.appendChild(pill);
     shadow.appendChild(panel);
+
+    const lightbox = document.createElement("div");
+    lightbox.className = "lightbox";
+    lightbox.setAttribute("role", "dialog");
+    lightbox.setAttribute("aria-modal", "true");
+    lightbox.setAttribute("aria-label", "Image viewer");
+    lightbox.setAttribute("aria-hidden", "true");
+    lightbox.innerHTML = `
+      <div class="lightbox-backdrop" data-lightbox-close="1"></div>
+      <div class="lightbox-stage" data-lightbox-stage>
+        <img class="lightbox-img" alt="" draggable="false" />
+      </div>
+      <div class="lightbox-bar">
+        <button type="button" class="lb-btn" data-lb="zoom-out" aria-label="Zoom out" title="Zoom out (-)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M8 11h6"/><path d="M20 20l-4-4"/></svg>
+        </button>
+        <span class="lb-zoom" data-lb-zoom>100%</span>
+        <button type="button" class="lb-btn" data-lb="zoom-in" aria-label="Zoom in" title="Zoom in (+)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M8 11h6"/><path d="M11 8v6"/><path d="M20 20l-4-4"/></svg>
+        </button>
+        <span class="lb-sep" aria-hidden="true"></span>
+        <button type="button" class="lb-btn" data-lb="reset" aria-label="Reset zoom" title="Reset (0)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66"/><path d="M4 4v4h4"/></svg>
+        </button>
+        <button type="button" class="lb-btn" data-lb="close" aria-label="Close" title="Close (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="lightbox-caption" data-lb-caption data-empty="1"></div>
+    `;
+    shadow.appendChild(lightbox);
+
     wirePanel(shadow);
+    wireLightbox(shadow);
   }
 
   // ---- Control panel wiring ----------------------------------------------
@@ -1188,6 +1382,7 @@
     }
     ensureReadingMeta();
     ensureCopyButtons();
+    ensureImageEnhancements();
   }
 
   function restoreSingleColumn() {
@@ -1641,6 +1836,7 @@
     wireTocObserver(entries);
     ensureReadingMeta();
     ensureCopyButtons();
+    ensureImageEnhancements();
   }
 
   function renderToc(entries) {
@@ -2123,6 +2319,18 @@
 
   function onArticleClick(e) {
     if (!state.enabled) return;
+    // Image click → open lightbox. Only for images inside the article and
+    // not inside an <a> (links should still navigate).
+    const img = e.target?.tagName === "IMG" ? e.target : null;
+    if (img && articleEl && articleEl.contains(img) && !img.closest("a")) {
+      const src = resolveImageSource(img);
+      if (src) {
+        e.preventDefault();
+        e.stopPropagation();
+        openLightbox(img, src);
+        return;
+      }
+    }
     const m = e.target.closest?.(`mark[${HIGHLIGHT_ATTR}="1"]`);
     if (!m) return;
     const id = m.getAttribute(HIGHLIGHT_ID_ATTR);
@@ -2477,6 +2685,273 @@
   }
 
   // ---- Keyboard shortcut: Shift+R -----------------------------------------
+  // ---- Inline image lightbox with zoom ----------------------------------
+  // Clicking any <img> inside the article opens a frosted overlay with the
+  // image at fit-to-screen, then zoom in/out (wheel + buttons + +/- keys),
+  // drag to pan when zoomed past 1×, double-click to toggle 1×/2×, Esc to
+  // close. Pure CSS chrome lives in mountShell's <style>; this controller
+  // owns transform math + event wiring. The lightbox lives in the shadow
+  // root so page CSS can never reach it.
+  const lightboxState = {
+    open: false,
+    zoom: 1,
+    tx: 0,
+    ty: 0,
+    dragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    txStart: 0,
+    tyStart: 0,
+    pointerId: null,
+    src: "",
+  };
+
+  function clampZoom(z) {
+    if (!Number.isFinite(z)) return 1;
+    return Math.min(LIGHTBOX_ZOOM_MAX, Math.max(LIGHTBOX_ZOOM_MIN, z));
+  }
+
+  function resolveImageSource(img) {
+    try {
+      if (img.currentSrc) return img.currentSrc;
+      if (img.src) return img.src;
+    } catch { /* cross-origin */ }
+    return img.getAttribute("src") || "";
+  }
+
+  function getLightboxEls() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const shadow = root?.shadowRoot;
+    if (!shadow) return null;
+    const lightbox = shadow.querySelector(".lightbox");
+    if (!lightbox) return null;
+    return {
+      shadow,
+      lightbox,
+      img: lightbox.querySelector(".lightbox-img"),
+      stage: lightbox.querySelector("[data-lightbox-stage]"),
+      caption: lightbox.querySelector("[data-lb-caption]"),
+      zoomLabel: lightbox.querySelector("[data-lb-zoom]"),
+      backdrop: lightbox.querySelector(".lightbox-backdrop"),
+    };
+  }
+
+  function isLightboxOpen() {
+    return lightboxState.open === true;
+  }
+
+  function applyLightboxTransform() {
+    const els = getLightboxEls();
+    if (!els || !els.img) return;
+    const z = clampZoom(lightboxState.zoom);
+    lightboxState.zoom = z;
+    els.img.style.transform = `translate(${lightboxState.tx}px, ${lightboxState.ty}px) scale(${z})`;
+    if (els.zoomLabel) els.zoomLabel.textContent = `${Math.round(z * 100)}%`;
+    els.img.setAttribute("data-zoom-gt-one", z > 1.001 ? "1" : "0");
+    // Disable buttons at the rails.
+    const zin = els.lightbox.querySelector('[data-lb="zoom-in"]');
+    const zout = els.lightbox.querySelector('[data-lb="zoom-out"]');
+    if (zin) zin.disabled = z >= LIGHTBOX_ZOOM_MAX - 1e-3;
+    if (zout) zout.disabled = z <= LIGHTBOX_ZOOM_MIN + 1e-3;
+  }
+
+  function openLightbox(img, src) {
+    const els = getLightboxEls();
+    if (!els) return;
+    lightboxState.open = true;
+    lightboxState.zoom = 1;
+    lightboxState.tx = 0;
+    lightboxState.ty = 0;
+    lightboxState.src = src;
+    els.img.alt = img.getAttribute("alt") || "";
+    els.img.src = src;
+    const cap = (img.getAttribute("alt") || "").trim()
+      || (img.getAttribute("title") || "").trim();
+    if (els.caption) {
+      if (cap) {
+        els.caption.textContent = cap;
+        els.caption.removeAttribute("data-empty");
+      } else {
+        els.caption.textContent = "";
+        els.caption.setAttribute("data-empty", "1");
+      }
+    }
+    els.lightbox.setAttribute("data-visible", "1");
+    els.lightbox.setAttribute("aria-hidden", "false");
+    applyLightboxTransform();
+    // Focus the close button so keyboard users can dismiss immediately.
+    const closeBtn = els.lightbox.querySelector('[data-lb="close"]');
+    try { closeBtn?.focus({ preventScroll: true }); } catch { /* */ }
+  }
+
+  function closeLightbox() {
+    const els = getLightboxEls();
+    if (!els) return;
+    lightboxState.open = false;
+    lightboxState.dragging = false;
+    els.lightbox.removeAttribute("data-visible");
+    els.lightbox.setAttribute("aria-hidden", "true");
+    if (els.img) {
+      els.img.removeAttribute("data-dragging");
+      els.img.removeAttribute("data-zoom-gt-one");
+      // Drop the src so memory isn't held for huge images.
+      els.img.removeAttribute("src");
+      els.img.style.transform = "translate(0px, 0px) scale(1)";
+    }
+  }
+
+  function zoomLightbox(delta, origin) {
+    if (!isLightboxOpen()) return;
+    const els = getLightboxEls();
+    if (!els || !els.img || !els.stage) return;
+    const prev = lightboxState.zoom;
+    const next = clampZoom(prev + delta);
+    if (next === prev) return;
+    // Zoom around the supplied origin (in stage-local coordinates) so the
+    // point under the cursor stays put. Without an origin, zoom around the
+    // current center (tx/ty stay).
+    if (origin) {
+      const rect = els.stage.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      const ox = origin.x - rect.left - cx;
+      const oy = origin.y - rect.top - cy;
+      const ratio = next / prev;
+      lightboxState.tx = ratio * (lightboxState.tx - ox) + ox;
+      lightboxState.ty = ratio * (lightboxState.ty - oy) + oy;
+    }
+    lightboxState.zoom = next;
+    if (next <= 1.001) {
+      lightboxState.tx = 0;
+      lightboxState.ty = 0;
+    }
+    applyLightboxTransform();
+  }
+
+  function resetLightbox() {
+    lightboxState.zoom = 1;
+    lightboxState.tx = 0;
+    lightboxState.ty = 0;
+    applyLightboxTransform();
+  }
+
+  function wireLightbox(shadow) {
+    const lightbox = shadow.querySelector(".lightbox");
+    if (!lightbox) return;
+    const img = lightbox.querySelector(".lightbox-img");
+    const stage = lightbox.querySelector("[data-lightbox-stage]");
+    if (!img || !stage) return;
+
+    lightbox.addEventListener("click", (e) => {
+      const target = e.target;
+      if (target?.closest?.("[data-lightbox-close]")) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeLightbox();
+        return;
+      }
+      const btn = target?.closest?.("[data-lb]");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const action = btn.getAttribute("data-lb");
+      if (action === "zoom-in") zoomLightbox(LIGHTBOX_ZOOM_STEP);
+      else if (action === "zoom-out") zoomLightbox(-LIGHTBOX_ZOOM_STEP);
+      else if (action === "reset") resetLightbox();
+      else if (action === "close") closeLightbox();
+    });
+
+    img.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (lightboxState.zoom > 1.001) resetLightbox();
+      else zoomLightbox(1, { x: e.clientX, y: e.clientY });
+    });
+
+    img.addEventListener("click", (e) => {
+      // Single-click on the image at 1x zooms in; at >1x toggles back.
+      e.preventDefault();
+      e.stopPropagation();
+      if (lightboxState.dragging) return;
+      if (lightboxState.zoom <= 1.001) {
+        zoomLightbox(1, { x: e.clientX, y: e.clientY });
+      }
+    });
+
+    stage.addEventListener("wheel", (e) => {
+      if (!isLightboxOpen()) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -LIGHTBOX_ZOOM_STEP : LIGHTBOX_ZOOM_STEP;
+      zoomLightbox(delta, { x: e.clientX, y: e.clientY });
+    }, { passive: false });
+
+    // Pointer drag-to-pan when zoomed.
+    img.addEventListener("pointerdown", (e) => {
+      if (lightboxState.zoom <= 1.001) return;
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      lightboxState.dragging = true;
+      lightboxState.dragStartX = e.clientX;
+      lightboxState.dragStartY = e.clientY;
+      lightboxState.txStart = lightboxState.tx;
+      lightboxState.tyStart = lightboxState.ty;
+      lightboxState.pointerId = e.pointerId;
+      img.setAttribute("data-dragging", "1");
+      try { img.setPointerCapture(e.pointerId); } catch { /* */ }
+      e.preventDefault();
+    });
+    img.addEventListener("pointermove", (e) => {
+      if (!lightboxState.dragging || e.pointerId !== lightboxState.pointerId) return;
+      lightboxState.tx = lightboxState.txStart + (e.clientX - lightboxState.dragStartX);
+      lightboxState.ty = lightboxState.tyStart + (e.clientY - lightboxState.dragStartY);
+      img.style.transform = `translate(${lightboxState.tx}px, ${lightboxState.ty}px) scale(${lightboxState.zoom})`;
+    });
+    const endDrag = (e) => {
+      if (!lightboxState.dragging) return;
+      if (e.pointerId !== lightboxState.pointerId) return;
+      lightboxState.dragging = false;
+      lightboxState.pointerId = null;
+      img.removeAttribute("data-dragging");
+      try { img.releasePointerCapture(e.pointerId); } catch { /* */ }
+    };
+    img.addEventListener("pointerup", endDrag);
+    img.addEventListener("pointercancel", endDrag);
+  }
+
+  // Tag in-article images so cursor + a11y picks them up. Idempotent.
+  function ensureImageEnhancements() {
+    if (!state.enabled || !articleEl || !articleEl.isConnected) return;
+    let imgs;
+    try { imgs = articleEl.querySelectorAll("img"); } catch { return; }
+    for (const img of imgs) {
+      if (img.getAttribute(IMG_ATTR) === "1") continue;
+      // Skip tiny icons and decorative SVG-sprites that aren't worth opening.
+      const w = img.naturalWidth || img.width || 0;
+      const h = img.naturalHeight || img.height || 0;
+      if (w && h && w < 64 && h < 64) continue;
+      if (img.closest("a")) continue;
+      img.setAttribute(IMG_ATTR, "1");
+      img.setAttribute("tabindex", img.getAttribute("tabindex") || "0");
+      if (!img.getAttribute("role")) img.setAttribute("role", "button");
+      if (!img.getAttribute("aria-label")) {
+        const alt = (img.getAttribute("alt") || "").trim();
+        img.setAttribute("aria-label", alt ? `Open image: ${alt}` : "Open image");
+      }
+    }
+  }
+
+  // Keyboard activation on focused images.
+  document.addEventListener("keydown", (e) => {
+    if (!state.enabled) return;
+    if (isLightboxOpen()) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target;
+    if (!(t instanceof HTMLImageElement)) return;
+    if (t.getAttribute(IMG_ATTR) !== "1") return;
+    e.preventDefault();
+    const src = resolveImageSource(t);
+    if (src) openLightbox(t, src);
+  }, true);
+
   function isTypingTarget(el) {
     if (!el) return false;
     if (el.isContentEditable) return true;
@@ -2489,6 +2964,30 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTypingTarget(e.target)) return;
     if (!state.supported) return;
+
+    // Lightbox key handling — when open, Escape closes; +/- zoom; 0 resets.
+    if (isLightboxOpen()) {
+      if (e.key === "Escape") {
+        e.preventDefault(); e.stopPropagation();
+        closeLightbox();
+        return;
+      }
+      if (e.key === "+" || (e.code === "Equal" && e.shiftKey)) {
+        e.preventDefault(); e.stopPropagation();
+        zoomLightbox(LIGHTBOX_ZOOM_STEP);
+        return;
+      }
+      if (e.key === "-" || e.code === "Minus") {
+        e.preventDefault(); e.stopPropagation();
+        zoomLightbox(-LIGHTBOX_ZOOM_STEP);
+        return;
+      }
+      if (e.key === "0" || e.code === "Digit0") {
+        e.preventDefault(); e.stopPropagation();
+        resetLightbox();
+        return;
+      }
+    }
 
     // Shift + R toggles reader mode.
     if ((e.key === "R" || e.code === "KeyR") && e.shiftKey) {
@@ -2735,6 +3234,17 @@
           entries: tocEntries.map((e) => ({ id: e.id, text: e.text, level: e.level })),
           activeId: tocActiveId,
         });
+        return true;
+      case "doc-reader/lightbox-state":
+        sendResponse({
+          open: isLightboxOpen(),
+          zoom: lightboxState.zoom,
+          src: lightboxState.src,
+        });
+        return true;
+      case "doc-reader/close-lightbox":
+        closeLightbox();
+        sendResponse({ ok: true });
         return true;
       default:
         return false;

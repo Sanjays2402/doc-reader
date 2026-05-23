@@ -20,7 +20,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Estimated reading time in header
 - [x] Copy code button on every code block
 - [x] Syntax theme picker (3 themes: noir, paper, neon)
-- [ ] Inline image lightbox with zoom
+- [x] Inline image lightbox with zoom
 - [ ] Section-collapse toggles on h2 headings
 - [ ] Export current article to Markdown
 - [ ] Focus mode (dims everything except current paragraph)

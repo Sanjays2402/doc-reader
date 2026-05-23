@@ -404,6 +404,26 @@ html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] img 
   border-radius: 8px;
 }
 
+/* Inline image lightbox — in-article images become a tappable target. The
+   overlay itself lives in the extension shadow root; this class only
+   styles the in-flow image to advertise the affordance. */
+html.doc-reader-active [data-doc-reader-article="1"] img[data-doc-reader-img="1"] {
+  cursor: zoom-in;
+  transition:
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active [data-doc-reader-article="1"] img[data-doc-reader-img="1"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 36px rgba(0,0,0,0.18);
+}
+html.doc-reader-active [data-doc-reader-article="1"] img[data-doc-reader-img="1"]:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px color-mix(in oklch, var(--doc-reader-accent, #83d0f2) 60%, transparent),
+    0 14px 36px rgba(0,0,0,0.18);
+}
+
 /* Highlight tool — 4 colors, persisted per URL.
    Marks are inserted into the article subtree and tagged with a color
    id; we set background + ink color via attribute selectors so the same
