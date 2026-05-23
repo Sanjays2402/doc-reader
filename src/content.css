@@ -36,3 +36,63 @@ html.doc-reader-active [data-doc-reader-root] [data-interactive] {
 html.doc-reader-active [data-doc-reader-hide="1"] {
   display: none !important;
 }
+
+/* Single-column layout with adjustable max-width.
+   The content script tags the detected article element with
+   data-doc-reader-article="1" when reader mode is on. Width is
+   driven by --doc-reader-max-width so it can be adjusted live via
+   keyboard ([ and ]) or messages without re-rendering. */
+html.doc-reader-active {
+  --doc-reader-max-width: 720px;
+}
+
+/* Relax layout constraints on ancestors of the article so the
+   centered single column isn't pinned inside a narrower grid/flex
+   shell. */
+html.doc-reader-active [data-doc-reader-article-ancestor="1"] {
+  display: block !important;
+  grid-template-columns: none !important;
+  grid-template-areas: none !important;
+  max-width: none !important;
+  width: auto !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  float: none !important;
+  position: static !important;
+  transform: none !important;
+}
+
+html.doc-reader-active [data-doc-reader-article="1"] {
+  display: block !important;
+  column-count: 1 !important;
+  columns: auto !important;
+  float: none !important;
+  position: relative !important;
+  box-sizing: border-box !important;
+  max-width: var(--doc-reader-max-width, 720px) !important;
+  width: auto !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding: 32px 24px 96px !important;
+  font-size: 16.5px;
+  line-height: 1.7;
+  letter-spacing: -0.005em;
+  transition: max-width 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.doc-reader-active [data-doc-reader-article="1"] > * {
+  max-width: 100% !important;
+  width: auto !important;
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre,
+html.doc-reader-active [data-doc-reader-article="1"] img,
+html.doc-reader-active [data-doc-reader-article="1"] table,
+html.doc-reader-active [data-doc-reader-article="1"] iframe {
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre {
+  overflow-x: auto;
+}

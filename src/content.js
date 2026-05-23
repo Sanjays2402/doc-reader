@@ -12,6 +12,13 @@
   const ACTIVE_CLASS = `${NS}-active`; // "doc-reader-active"
 
   const STORAGE_KEY = `${NS}:enabled`;
+  const WIDTH_STORAGE_KEY = `${NS}:width`;
+  const WIDTH_MIN = 560;
+  const WIDTH_MAX = 1080;
+  const WIDTH_DEFAULT = 720;
+  const WIDTH_STEP = 40;
+  const ARTICLE_ATTR = "data-doc-reader-article";
+  const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
 
   // ---- Site detection ------------------------------------------------------
   let site = null;
@@ -30,7 +37,14 @@
     href: location.href,
     site: site ? { id: site.id, label: site.label, accent: site.accent } : null,
     supported: !!site,
+    width: WIDTH_DEFAULT,
   };
+
+  function clampWidth(n) {
+    n = Math.round(Number(n) || WIDTH_DEFAULT);
+    if (!Number.isFinite(n)) n = WIDTH_DEFAULT;
+    return Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, n));
+  }
 
   if (site) {
     document.documentElement.setAttribute(`data-${NS}-site`, site.id);
@@ -139,14 +153,74 @@
     const root = ensureRoot();
     if (state.enabled) {
       document.documentElement.classList.add(ACTIVE_CLASS);
+      applyWidth();
       root.removeAttribute("hidden");
       stripNoise();
+      applySingleColumn();
     } else {
+      restoreSingleColumn();
       restoreNoise();
       document.documentElement.classList.remove(ACTIVE_CLASS);
       // Keep the shadow host mounted; hide so future features can reuse it.
       root.setAttribute("hidden", "");
     }
+  }
+
+  // ---- Single-column layout ------------------------------------------------
+  function applyWidth() {
+    document.documentElement.style.setProperty(
+      "--doc-reader-max-width",
+      `${state.width}px`,
+    );
+  }
+
+  function applySingleColumn() {
+    if (!state.supported) return;
+    restoreSingleColumn();
+    let el = null;
+    try { el = document.querySelector(site.article); } catch { el = null; }
+    if (!el) return;
+    articleEl = el;
+    el.setAttribute(ARTICLE_ATTR, "1");
+    ancestorEls = [];
+    for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
+      n.setAttribute(ANCESTOR_ATTR, "1");
+      ancestorEls.push(n);
+    }
+  }
+
+  function restoreSingleColumn() {
+    if (articleEl) {
+      try { articleEl.removeAttribute(ARTICLE_ATTR); } catch { /* detached */ }
+      articleEl = null;
+    }
+    for (const n of ancestorEls) {
+      try { n.removeAttribute(ANCESTOR_ATTR); } catch { /* detached */ }
+    }
+    ancestorEls = [];
+  }
+
+  async function setWidth(next, opts = {}) {
+    const v = clampWidth(next);
+    state.width = v;
+    if (state.enabled) {
+      applyWidth();
+      flashWidth();
+    }
+    if (opts.persist !== false) persistWidth(v);
+    return v;
+  }
+
+  function flashWidth() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const pill = root?.shadowRoot?.querySelector(".pill");
+    if (!pill) return;
+    const label = pill.querySelector(".label");
+    if (label) label.textContent = `${state.width}px`;
+    pill.setAttribute("data-state", state.enabled ? "on" : "off");
+    pill.setAttribute("data-visible", "1");
+    clearTimeout(pillHideTimer);
+    pillHideTimer = setTimeout(() => pill.removeAttribute("data-visible"), 1100);
   }
 
   // ---- Strip noise (nav, sidebar, ads) ------------------------------------
@@ -156,6 +230,8 @@
   // which nodes we tagged so disabling reader mode restores the page.
   const HIDE_ATTR = "data-doc-reader-hide";
   let hiddenNodes = [];
+  let articleEl = null;
+  let ancestorEls = [];
 
   function getKeepAncestors() {
     if (!site) return new Set();
@@ -254,6 +330,30 @@
     }
   }
 
+  async function loadWidth() {
+    try {
+      const got = await chrome.storage?.local?.get?.(WIDTH_STORAGE_KEY);
+      const map = got?.[WIDTH_STORAGE_KEY];
+      if (map && typeof map === "object" && map[state.host]) {
+        return clampWidth(map[state.host]);
+      }
+    } catch {
+      /* storage unavailable */
+    }
+    return WIDTH_DEFAULT;
+  }
+
+  async function persistWidth(value) {
+    try {
+      const got = await chrome.storage?.local?.get?.(WIDTH_STORAGE_KEY);
+      const map = (got && got[WIDTH_STORAGE_KEY]) || {};
+      map[state.host] = clampWidth(value);
+      await chrome.storage?.local?.set?.({ [WIDTH_STORAGE_KEY]: map });
+    } catch {
+      /* ignore */
+    }
+  }
+
   // ---- Keyboard shortcut: Shift+R -----------------------------------------
   function isTypingTarget(el) {
     if (!el) return false;
@@ -263,16 +363,34 @@
   }
 
   function onKeyDown(e) {
-    // Strict match: Shift + R, no other modifiers, not inside an input.
     if (e.defaultPrevented) return;
-    if (e.key !== "R" && e.code !== "KeyR") return;
-    if (!e.shiftKey) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTypingTarget(e.target)) return;
     if (!state.supported) return;
-    e.preventDefault();
-    e.stopPropagation();
-    toggleEnabled();
+
+    // Shift + R toggles reader mode.
+    if ((e.key === "R" || e.code === "KeyR") && e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleEnabled();
+      return;
+    }
+
+    // [ and ] adjust max-width while reader mode is on. No shift.
+    if (state.enabled && !e.shiftKey) {
+      if (e.key === "[" || e.code === "BracketLeft") {
+        e.preventDefault();
+        e.stopPropagation();
+        setWidth(state.width - WIDTH_STEP);
+        return;
+      }
+      if (e.key === "]" || e.code === "BracketRight") {
+        e.preventDefault();
+        e.stopPropagation();
+        setWidth(state.width + WIDTH_STEP);
+        return;
+      }
+    }
   }
   window.addEventListener("keydown", onKeyDown, true);
 
@@ -298,6 +416,12 @@
           supported: state.supported,
         });
         return true;
+      case "doc-reader/get-width":
+        sendResponse({ width: state.width, min: WIDTH_MIN, max: WIDTH_MAX });
+        return true;
+      case "doc-reader/set-width":
+        setWidth(msg.width).then((w) => sendResponse({ width: w }));
+        return true;
       default:
         return false;
     }
@@ -306,6 +430,8 @@
   // ---- Boot ----------------------------------------------------------------
   ensureRoot();
   if (state.supported) {
+    state.width = await loadWidth();
+    applyWidth();
     const wasEnabled = await loadEnabled();
     if (wasEnabled) setEnabled(true, { flash: false });
   }
