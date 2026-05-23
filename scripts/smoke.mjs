@@ -73,6 +73,10 @@ for (const needle of [
   "stripNoise",
   "restoreNoise",
   "data-doc-reader-hide",
+  "buildToc",
+  "toc-list",
+  "On this page",
+  "IntersectionObserver",
 ]) {
   if (!contentSrc.includes(needle)) {
     console.error("content.js missing reader-toggle token:", needle);

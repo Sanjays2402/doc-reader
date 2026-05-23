@@ -7,7 +7,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Toggle reader mode on/off (keyboard shortcut Shift+R)
 - [x] Strip nav, sidebar, ads — keep article + code blocks
 - [x] Single-column layout with adjustable max-width
-- [ ] Persistent TOC sidebar from h2/h3
+- [x] Persistent TOC sidebar from h2/h3
 - [ ] Reading progress indicator
 - [ ] Font size + line-height controls
 - [ ] Serif/sans/mono toggle

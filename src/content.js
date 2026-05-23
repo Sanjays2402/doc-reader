@@ -19,6 +19,8 @@
   const WIDTH_STEP = 40;
   const ARTICLE_ATTR = "data-doc-reader-article";
   const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
+  const HEADING_ATTR = "data-doc-reader-heading";
+  const TOC_REBUILD_MS = 280;
 
   // ---- Site detection ------------------------------------------------------
   let site = null;
@@ -69,6 +71,153 @@
     const style = document.createElement("style");
     style.textContent = `
       :host, * { box-sizing: border-box; }
+      .toc {
+        position: fixed;
+        top: 64px;
+        left: 20px;
+        width: 248px;
+        max-height: calc(100vh - 96px);
+        pointer-events: auto;
+        display: flex;
+        flex-direction: column;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro", sans-serif;
+        font-size: 12.5px;
+        letter-spacing: -0.01em;
+        line-height: 1.45;
+        color: rgba(245,245,247,0.92);
+        background: linear-gradient(180deg, rgba(22,22,28,0.66), rgba(14,14,18,0.58));
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 18px;
+        box-shadow:
+          0 18px 48px rgba(0,0,0,0.34),
+          inset 0 1px 0 rgba(255,255,255,0.06);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        opacity: 0;
+        transform: translateX(-8px);
+        transition:
+          opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        overflow: hidden;
+      }
+      .toc[data-visible="1"] {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      .toc::before {
+        content: "";
+        position: absolute;
+        inset: -40% -30% auto auto;
+        width: 220px;
+        height: 220px;
+        background: radial-gradient(closest-side, ${accent}33, transparent 70%);
+        filter: blur(28px);
+        pointer-events: none;
+      }
+      .toc-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 16px 10px;
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(245,245,247,0.62);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        position: relative;
+      }
+      .toc-head svg {
+        width: 14px;
+        height: 14px;
+        stroke: ${accent};
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .toc-list {
+        list-style: none;
+        margin: 0;
+        padding: 8px 8px 12px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255,255,255,0.16) transparent;
+        position: relative;
+      }
+      .toc-list::-webkit-scrollbar { width: 6px; }
+      .toc-list::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.16);
+        border-radius: 999px;
+      }
+      .toc-item {
+        margin: 0;
+        padding: 0;
+      }
+      .toc-link {
+        display: block;
+        padding: 6px 10px;
+        margin: 1px 0;
+        border-radius: 8px;
+        color: rgba(245,245,247,0.74);
+        text-decoration: none;
+        cursor: pointer;
+        font-weight: 450;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border: 1px solid transparent;
+        transition:
+          background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          border-color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .toc-link:hover {
+        background: rgba(255,255,255,0.06);
+        color: rgba(245,245,247,0.96);
+      }
+      .toc-link:focus-visible {
+        outline: none;
+        border-color: ${accent}99;
+        box-shadow: 0 0 0 2px ${accent}55;
+      }
+      .toc-item[data-level="3"] .toc-link {
+        padding-left: 22px;
+        font-size: 12px;
+        color: rgba(245,245,247,0.62);
+      }
+      .toc-link[data-active="1"] {
+        background: linear-gradient(180deg, ${accent}22, ${accent}11);
+        color: rgba(245,245,247,0.98);
+        border-color: ${accent}33;
+      }
+      .toc-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 28px 20px 24px;
+        color: rgba(245,245,247,0.58);
+        text-align: center;
+      }
+      .toc-empty svg {
+        width: 56px;
+        height: 40px;
+        stroke: ${accent};
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+        opacity: 0.72;
+      }
+      .toc-empty span {
+        font-size: 11.5px;
+        letter-spacing: 0;
+      }
+      @media (max-width: 1100px) {
+        .toc { display: none; }
+      }
       .pill {
         position: fixed;
         top: 16px;
@@ -131,7 +280,26 @@
       <span class="label">Reader off</span>
       <span class="kbd" aria-hidden="true">⇧R</span>
     `;
+
+    const toc = document.createElement("nav");
+    toc.className = "toc";
+    toc.setAttribute("aria-label", "Document outline");
+    toc.innerHTML = `
+      <div class="toc-head">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 6h10" />
+          <path d="M4 12h16" />
+          <path d="M4 18h7" />
+          <circle cx="18" cy="6" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="18" r="1.2" fill="currentColor" stroke="none" />
+        </svg>
+        <span>On this page</span>
+      </div>
+      <ul class="toc-list" role="list"></ul>
+    `;
+
     shadow.appendChild(style);
+    shadow.appendChild(toc);
     shadow.appendChild(pill);
   }
 
@@ -157,7 +325,10 @@
       root.removeAttribute("hidden");
       stripNoise();
       applySingleColumn();
+      buildToc();
+      watchArticleForToc();
     } else {
+      hideToc();
       restoreSingleColumn();
       restoreNoise();
       document.documentElement.classList.remove(ACTIVE_CLASS);
@@ -232,6 +403,183 @@
   let hiddenNodes = [];
   let articleEl = null;
   let ancestorEls = [];
+
+  // ---- Persistent TOC sidebar (h2/h3) -------------------------------------
+  let tocEntries = [];      // [{ id, text, level, el }]
+  let tocIO = null;          // IntersectionObserver
+  let tocMO = null;          // MutationObserver on article
+  let tocRebuildTimer = 0;
+  let tocActiveId = null;
+  let tocClickGuardUntil = 0;
+
+  function slugify(text, taken) {
+    const base = (text || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]+/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .slice(0, 64) || "section";
+    let id = `doc-reader-${base}`;
+    let i = 2;
+    while (taken.has(id)) id = `doc-reader-${base}-${i++}`;
+    taken.add(id);
+    return id;
+  }
+
+  function buildToc() {
+    if (!state.supported || !state.enabled) {
+      hideToc();
+      return;
+    }
+    const tocSel = site?.toc || "article h2, article h3";
+    let nodes = [];
+    try { nodes = Array.from(document.querySelectorAll(tocSel)); } catch { nodes = []; }
+    // Visible heading only — skip hidden chrome.
+    nodes = nodes.filter((h) => {
+      if (!(h instanceof HTMLElement)) return false;
+      if (h.closest(`[${HIDE_ATTR}="1"]`)) return false;
+      const text = (h.textContent || "").trim();
+      return text.length > 0;
+    });
+
+    // Tag entries with stable ids; reuse existing id if present.
+    const taken = new Set();
+    for (const h of nodes) if (h.id) taken.add(h.id);
+    const entries = nodes.map((h) => {
+      if (!h.id) h.id = slugify(h.textContent.trim(), taken);
+      h.setAttribute(HEADING_ATTR, "1");
+      return {
+        id: h.id,
+        text: h.textContent.trim().replace(/\s+/g, " "),
+        level: h.tagName === "H3" ? 3 : 2,
+        el: h,
+      };
+    });
+    tocEntries = entries;
+    renderToc(entries);
+    wireTocObserver(entries);
+  }
+
+  function renderToc(entries) {
+    const root = ensureRoot();
+    const shadow = root.shadowRoot;
+    const toc = shadow?.querySelector(".toc");
+    const list = shadow?.querySelector(".toc-list");
+    if (!toc || !list) return;
+    list.textContent = "";
+    if (entries.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "toc-empty";
+      empty.innerHTML = `
+        <svg viewBox="0 0 64 48" aria-hidden="true">
+          <path d="M8 10c10-6 22-6 32 0" />
+          <path d="M10 22c10-5 22-5 30 0" />
+          <path d="M12 34c8-4 20-4 26 0" />
+          <circle cx="52" cy="14" r="4" />
+          <path d="M55 17l5 5" />
+        </svg>
+        <span>No headings on this page</span>
+      `;
+      list.appendChild(empty);
+      toc.setAttribute("data-visible", "1");
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    for (const entry of entries) {
+      const li = document.createElement("li");
+      li.className = "toc-item";
+      li.setAttribute("data-level", String(entry.level));
+      const a = document.createElement("a");
+      a.className = "toc-link";
+      a.href = `#${entry.id}`;
+      a.textContent = entry.text;
+      a.setAttribute("data-toc-id", entry.id);
+      a.addEventListener("click", onTocClick);
+      li.appendChild(a);
+      frag.appendChild(li);
+    }
+    list.appendChild(frag);
+    toc.setAttribute("data-visible", "1");
+  }
+
+  function onTocClick(e) {
+    e.preventDefault();
+    const id = e.currentTarget?.getAttribute("data-toc-id");
+    if (!id) return;
+    const target = document.getElementById(id);
+    if (!target) return;
+    tocClickGuardUntil = Date.now() + 700;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    setActiveTocId(id);
+  }
+
+  function setActiveTocId(id) {
+    if (id === tocActiveId) return;
+    tocActiveId = id;
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const links = root?.shadowRoot?.querySelectorAll(".toc-link");
+    if (!links) return;
+    for (const a of links) {
+      if (a.getAttribute("data-toc-id") === id) a.setAttribute("data-active", "1");
+      else a.removeAttribute("data-active");
+    }
+    const active = root?.shadowRoot?.querySelector('.toc-link[data-active="1"]');
+    if (active && typeof active.scrollIntoView === "function") {
+      const list = root.shadowRoot.querySelector(".toc-list");
+      const aRect = active.getBoundingClientRect();
+      const lRect = list?.getBoundingClientRect();
+      if (list && lRect && (aRect.top < lRect.top + 20 || aRect.bottom > lRect.bottom - 20)) {
+        active.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }
+
+  function wireTocObserver(entries) {
+    if (tocIO) { try { tocIO.disconnect(); } catch {} tocIO = null; }
+    if (!entries.length || typeof IntersectionObserver === "undefined") return;
+    const visible = new Map();
+    tocIO = new IntersectionObserver((records) => {
+      if (Date.now() < tocClickGuardUntil) return;
+      for (const r of records) {
+        if (r.isIntersecting) visible.set(r.target.id, r.intersectionRatio);
+        else visible.delete(r.target.id);
+      }
+      if (visible.size === 0) return;
+      // Pick first entry currently visible (top-most in source order).
+      for (const e of entries) {
+        if (visible.has(e.id)) { setActiveTocId(e.id); break; }
+      }
+    }, { rootMargin: "-72px 0px -60% 0px", threshold: [0, 1] });
+    for (const e of entries) {
+      try { tocIO.observe(e.el); } catch {}
+    }
+  }
+
+  function hideToc() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const toc = root?.shadowRoot?.querySelector(".toc");
+    if (toc) toc.removeAttribute("data-visible");
+    if (tocIO) { try { tocIO.disconnect(); } catch {} tocIO = null; }
+    if (tocMO) { try { tocMO.disconnect(); } catch {} tocMO = null; }
+    tocEntries = [];
+    tocActiveId = null;
+  }
+
+  function scheduleTocRebuild() {
+    clearTimeout(tocRebuildTimer);
+    tocRebuildTimer = setTimeout(() => {
+      if (state.enabled) buildToc();
+    }, TOC_REBUILD_MS);
+  }
+
+  function watchArticleForToc() {
+    if (tocMO) { try { tocMO.disconnect(); } catch {} tocMO = null; }
+    if (!articleEl || typeof MutationObserver === "undefined") return;
+    tocMO = new MutationObserver(() => scheduleTocRebuild());
+    try {
+      tocMO.observe(articleEl, { childList: true, subtree: true, characterData: true });
+    } catch { tocMO = null; }
+  }
 
   function getKeepAncestors() {
     if (!site) return new Set();
@@ -421,6 +769,12 @@
         return true;
       case "doc-reader/set-width":
         setWidth(msg.width).then((w) => sendResponse({ width: w }));
+        return true;
+      case "doc-reader/toc":
+        sendResponse({
+          entries: tocEntries.map((e) => ({ id: e.id, text: e.text, level: e.level })),
+          activeId: tocActiveId,
+        });
         return true;
       default:
         return false;
