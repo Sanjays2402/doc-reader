@@ -1,0 +1,12 @@
+{
+  "name": "doc-reader",
+  "version": "0.1.0",
+  "description": "Reader mode for technical documentation sites — MDN, React, Vercel, Tailwind. Single column, persistent TOC.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'no-op'",
+    "test": "node scripts/smoke.mjs",
+    "build": "echo 'no-op'"
+  }
+}

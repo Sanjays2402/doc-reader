@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Doc Reader",
+  "version": "0.1.0",
+  "description": "Reader mode for technical documentation sites — MDN, React, Vercel, Tailwind. Single column, persistent TOC.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://developer.mozilla.org/*",
+    "https://react.dev/*",
+    "https://vercel.com/docs/*",
+    "https://tailwindcss.com/docs/*",
+    "https://nextjs.org/docs/*"
+  ],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Doc Reader",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
