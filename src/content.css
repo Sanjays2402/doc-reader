@@ -454,6 +454,104 @@ html.doc-reader-active mark[data-doc-reader-hl="1"]:hover {
   }
 }
 
+/* Syntax theme picker — three palettes that override the default pre/code
+   colors when reader mode is active. Light + dark theme parity baked in:
+   each theme picks its own bg/ink so it looks intentional in both modes.
+   We target tokens by common highlighter class names (Prism / Shiki /
+   highlight.js) so themes work across MDN, React, Tailwind, Vercel, Next. */
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre {
+  background: #16181f !important;
+  color: #e6e8ef !important;
+  border-color: rgba(255,255,255,0.06) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 12px 32px rgba(0,0,0,0.30);
+}
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre code,
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre * {
+  background: transparent !important;
+  color: inherit !important;
+}
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre :where(.token.keyword, .hljs-keyword, .keyword, .kw)              { color: #c4a4ff !important; }
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre :where(.token.string, .hljs-string, .string, .str)              { color: #a3e4b5 !important; }
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre :where(.token.number, .hljs-number, .number, .num)              { color: #f5c889 !important; }
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre :where(.token.comment, .hljs-comment, .comment, .com)           { color: #6b7186 !important; font-style: italic; }
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre :where(.token.function, .hljs-function, .hljs-title, .function)  { color: #8ab4ff !important; }
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre :where(.token.tag, .token.selector, .hljs-tag, .hljs-selector-tag) { color: #ff9ec1 !important; }
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre :where(.token.attr-name, .hljs-attr, .hljs-attribute)            { color: #ffd6a0 !important; }
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] pre :where(.token.punctuation, .punctuation)                       { color: #9aa0b4 !important; }
+
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre {
+  background: #f6f1e6 !important;
+  color: #3a2e1f !important;
+  border-color: rgba(120, 80, 40, 0.18) !important;
+  box-shadow:
+    0 0 0 1px rgba(120, 80, 40, 0.04) inset,
+    0 6px 18px rgba(120, 80, 40, 0.10);
+}
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre code,
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre * {
+  background: transparent !important;
+  color: inherit !important;
+}
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre :where(.token.keyword, .hljs-keyword, .keyword, .kw)              { color: #9a3b1b !important; font-weight: 600; }
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre :where(.token.string, .hljs-string, .string, .str)              { color: #4d6b1f !important; }
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre :where(.token.number, .hljs-number, .number, .num)              { color: #8a5a00 !important; }
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre :where(.token.comment, .hljs-comment, .comment, .com)           { color: #8a7b5f !important; font-style: italic; }
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre :where(.token.function, .hljs-function, .hljs-title, .function)  { color: #1f5d8a !important; }
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre :where(.token.tag, .token.selector, .hljs-tag, .hljs-selector-tag) { color: #a23250 !important; }
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre :where(.token.attr-name, .hljs-attr, .hljs-attribute)            { color: #7a4a00 !important; }
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] pre :where(.token.punctuation, .punctuation)                       { color: #6e5a44 !important; }
+
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre {
+  background: linear-gradient(180deg, #0b0f1a 0%, #0a0d18 100%) !important;
+  color: #d6f0ff !important;
+  border-color: rgba(0, 255, 208, 0.22) !important;
+  box-shadow:
+    0 0 0 1px rgba(120, 200, 255, 0.08) inset,
+    0 0 28px rgba(0, 255, 208, 0.10),
+    0 12px 32px rgba(0, 0, 0, 0.45);
+}
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre code,
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre * {
+  background: transparent !important;
+  color: inherit !important;
+}
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre :where(.token.keyword, .hljs-keyword, .keyword, .kw)              { color: #ff5cf4 !important; text-shadow: 0 0 6px rgba(255, 92, 244, 0.45); }
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre :where(.token.string, .hljs-string, .string, .str)              { color: #00ffd0 !important; text-shadow: 0 0 6px rgba(0, 255, 208, 0.45); }
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre :where(.token.number, .hljs-number, .number, .num)              { color: #ffd166 !important; }
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre :where(.token.comment, .hljs-comment, .comment, .com)           { color: #6f7aa6 !important; font-style: italic; }
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre :where(.token.function, .hljs-function, .hljs-title, .function)  { color: #5cd5ff !important; text-shadow: 0 0 6px rgba(92, 213, 255, 0.40); }
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre :where(.token.tag, .token.selector, .hljs-tag, .hljs-selector-tag) { color: #ff79c6 !important; }
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre :where(.token.attr-name, .hljs-attr, .hljs-attribute)            { color: #c4a4ff !important; }
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] pre :where(.token.punctuation, .punctuation)                       { color: #8aa0c8 !important; }
+
+/* Inline <code> picks up a tinted background per theme so prose still
+   reads as themed even when no <pre> is present on the page. */
+html.doc-reader-active[data-doc-reader-syntax="noir"] [data-doc-reader-article="1"] :not(pre) > code {
+  background: rgba(120, 130, 200, 0.14) !important;
+  color: #c4a4ff !important;
+}
+html.doc-reader-active[data-doc-reader-syntax="paper"] [data-doc-reader-article="1"] :not(pre) > code {
+  background: rgba(180, 130, 60, 0.16) !important;
+  color: #7a4a10 !important;
+}
+html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="1"] :not(pre) > code {
+  background: rgba(0, 255, 208, 0.10) !important;
+  color: #00ffd0 !important;
+  box-shadow: 0 0 0 1px rgba(0, 255, 208, 0.20) inset;
+}
+
+@media print {
+  html.doc-reader-active[data-doc-reader-syntax] [data-doc-reader-article="1"] pre,
+  html.doc-reader-active[data-doc-reader-syntax] [data-doc-reader-article="1"] pre * {
+    background: #f7f7f7 !important;
+    color: #111111 !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+}
+
 /* ─── Print-friendly stylesheet ─────────────────────────────────────────
    When the user prints (Cmd/Ctrl+P) a doc page with reader mode active,
    strip the chrome (TOC, progress bar, control surfaces, highlights as

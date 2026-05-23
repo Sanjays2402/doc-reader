@@ -16,6 +16,7 @@
   const FONT_STORAGE_KEY = `${NS}:font-size`;
   const LH_STORAGE_KEY = `${NS}:line-height`;
   const FAMILY_STORAGE_KEY = `${NS}:font-family`;
+  const SYNTAX_STORAGE_KEY = `${NS}:syntax-theme`;
   const BOOKMARK_STORAGE_KEY = `${NS}:bookmarks`;
   const HIGHLIGHT_STORAGE_KEY = `${NS}:highlights`;
   const HIGHLIGHT_ATTR = "data-doc-reader-hl";
@@ -59,6 +60,13 @@
   ];
   const FAMILY_IDS = FAMILIES.map((f) => f.id);
   const FAMILY_DEFAULT = "sans";
+  const SYNTAX_THEMES = [
+    { id: "noir",  label: "Noir"  },
+    { id: "paper", label: "Paper" },
+    { id: "neon",  label: "Neon"  },
+  ];
+  const SYNTAX_THEME_IDS = SYNTAX_THEMES.map((t) => t.id);
+  const SYNTAX_THEME_DEFAULT = "noir";
   const ARTICLE_ATTR = "data-doc-reader-article";
   const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
   const HEADING_ATTR = "data-doc-reader-heading";
@@ -88,6 +96,7 @@
     fontSize: FONT_DEFAULT,
     lineHeight: LH_DEFAULT,
     fontFamily: FAMILY_DEFAULT,
+    syntaxTheme: SYNTAX_THEME_DEFAULT,
     theme: "light",
   };
 
@@ -154,6 +163,16 @@
   function familyLabel(id) {
     const f = FAMILIES.find((x) => x.id === clampFamily(id));
     return f ? f.label : FAMILIES[0].label;
+  }
+
+  function clampSyntaxTheme(id) {
+    if (typeof id !== "string") return SYNTAX_THEME_DEFAULT;
+    return SYNTAX_THEME_IDS.includes(id) ? id : SYNTAX_THEME_DEFAULT;
+  }
+
+  function syntaxThemeLabel(id) {
+    const t = SYNTAX_THEMES.find((x) => x.id === clampSyntaxTheme(id));
+    return t ? t.label : SYNTAX_THEMES[0].label;
   }
 
   function clampLineHeight(n) {
@@ -714,6 +733,24 @@
       .seg-sans { font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif; }
       .seg-serif { font-family: "Iowan Old Style", Charter, Georgia, serif; }
       .seg-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+      .seg-syntax-noir,
+      .seg-syntax-paper,
+      .seg-syntax-neon { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; letter-spacing: 0; }
+      .seg-syntax-noir::before,
+      .seg-syntax-paper::before,
+      .seg-syntax-neon::before {
+        content: "";
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+        margin-right: 6px;
+        vertical-align: -1px;
+        box-shadow: 0 0 0 1px rgba(255,255,255,0.18) inset;
+      }
+      .seg-syntax-noir::before  { background: linear-gradient(135deg, #1d1f2a 40%, #6c7cff 100%); }
+      .seg-syntax-paper::before { background: linear-gradient(135deg, #f6f1e6 40%, #b76b2c 100%); }
+      .seg-syntax-neon::before  { background: linear-gradient(135deg, #0b0f1a 40%, #00ffd0 100%); box-shadow: 0 0 6px rgba(0,255,208,0.55), 0 0 0 1px rgba(255,255,255,0.18) inset; }
 
       .panel-actions {
         display: flex;
@@ -876,6 +913,16 @@
             `).join("")}
           </div>
         </div>
+        <div class="panel-section" data-pane="syntax">
+          <div class="panel-row">
+            <span class="panel-label">Syntax theme</span>
+          </div>
+          <div class="segmented" role="radiogroup" aria-label="Syntax theme">
+            ${SYNTAX_THEMES.map((t) => `
+              <button type="button" class="seg-syntax-${t.id}" role="radio" aria-checked="false" data-syntax="${t.id}">${t.label}</button>
+            `).join("")}
+          </div>
+        </div>
         <div class="panel-actions">
           <button type="button" data-action="reset">Reset</button>
           <button type="button" class="primary" data-action="close">Done</button>
@@ -922,6 +969,7 @@
         setFontSize(FONT_DEFAULT),
         setLineHeight(LH_DEFAULT),
         setFontFamily(FAMILY_DEFAULT),
+        setSyntaxTheme(SYNTAX_THEME_DEFAULT),
       ]);
       syncPanel();
     });
@@ -941,6 +989,13 @@
         e.preventDefault();
         const id = btn.getAttribute("data-family");
         if (id) setFontFamily(id).then(syncPanel);
+      });
+    });
+    panel.querySelectorAll('.segmented button[data-syntax]').forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-syntax");
+        if (id) setSyntaxTheme(id).then(syncPanel);
       });
     });
     // Click-outside closes the panel.
@@ -1036,6 +1091,12 @@
       if (active) btn.setAttribute("data-active", "1");
       else btn.removeAttribute("data-active");
     });
+    panel.querySelectorAll('.segmented button[data-syntax]').forEach((btn) => {
+      const active = btn.getAttribute("data-syntax") === state.syntaxTheme;
+      btn.setAttribute("aria-checked", active ? "true" : "false");
+      if (active) btn.setAttribute("data-active", "1");
+      else btn.removeAttribute("data-active");
+    });
   }
 
   // ---- Toggle --------------------------------------------------------------
@@ -1098,6 +1159,7 @@
     root.style.setProperty("--doc-reader-line-height", String(state.lineHeight));
     root.style.setProperty("--doc-reader-font-family", familyStack(state.fontFamily));
     root.setAttribute("data-doc-reader-family", clampFamily(state.fontFamily));
+    root.setAttribute("data-doc-reader-syntax", clampSyntaxTheme(state.syntaxTheme));
   }
 
   function applySingleColumn() {
@@ -1377,6 +1439,18 @@
       syncPanel();
     }
     if (opts.persist !== false) persistFontFamily(v);
+    return v;
+  }
+
+  async function setSyntaxTheme(next, opts = {}) {
+    const v = clampSyntaxTheme(next);
+    state.syntaxTheme = v;
+    if (state.enabled) {
+      applyTypography();
+      flashTypography(`Syntax ${syntaxThemeLabel(v)}`);
+      syncPanel();
+    }
+    if (opts.persist !== false) persistSyntaxTheme(v);
     return v;
   }
 
@@ -2382,6 +2456,26 @@
     } catch { /* ignore */ }
   }
 
+  async function loadSyntaxTheme() {
+    try {
+      const got = await chrome.storage?.local?.get?.(SYNTAX_STORAGE_KEY);
+      const map = got?.[SYNTAX_STORAGE_KEY];
+      if (map && typeof map === "object" && map[state.host]) {
+        return clampSyntaxTheme(map[state.host]);
+      }
+    } catch { /* storage unavailable */ }
+    return SYNTAX_THEME_DEFAULT;
+  }
+
+  async function persistSyntaxTheme(value) {
+    try {
+      const got = await chrome.storage?.local?.get?.(SYNTAX_STORAGE_KEY);
+      const map = (got && got[SYNTAX_STORAGE_KEY]) || {};
+      map[state.host] = clampSyntaxTheme(value);
+      await chrome.storage?.local?.set?.({ [SYNTAX_STORAGE_KEY]: map });
+    } catch { /* ignore */ }
+  }
+
   // ---- Keyboard shortcut: Shift+R -----------------------------------------
   function isTypingTarget(el) {
     if (!el) return false;
@@ -2556,6 +2650,15 @@
       case "doc-reader/set-font-family":
         setFontFamily(msg.fontFamily).then((v) => sendResponse({ fontFamily: v }));
         return true;
+      case "doc-reader/set-syntax-theme":
+        setSyntaxTheme(msg.syntaxTheme).then((v) => sendResponse({ syntaxTheme: v }));
+        return true;
+      case "doc-reader/list-syntax-themes":
+        sendResponse({
+          themes: SYNTAX_THEMES.map((t) => ({ id: t.id, label: t.label })),
+          current: state.syntaxTheme,
+        });
+        return true;
       case "doc-reader/cycle-font-family":
         cycleFontFamily(msg.dir === -1 ? -1 : 1).then((v) => sendResponse({ fontFamily: v }));
         return true;
@@ -2645,6 +2748,7 @@
     state.fontSize = await loadFontSize();
     state.lineHeight = await loadLineHeight();
     state.fontFamily = await loadFontFamily();
+    state.syntaxTheme = await loadSyntaxTheme();
     applyWidth();
     applyTypography();
     await loadBookmarks();
