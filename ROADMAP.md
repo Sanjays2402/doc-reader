@@ -14,6 +14,6 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Bookmark current section
 - [x] Bookmarks list popup with search
 - [x] Highlight tool (4 colors, persisted per URL)
-- [ ] Auto-detect dark mode preference
+- [x] Auto-detect dark mode preference
 - [ ] Print-friendly stylesheet
 - [ ] Liquid-glass control panel

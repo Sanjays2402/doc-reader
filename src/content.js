@@ -86,7 +86,44 @@
     fontSize: FONT_DEFAULT,
     lineHeight: LH_DEFAULT,
     fontFamily: FAMILY_DEFAULT,
+    theme: "light",
   };
+
+  // ---- Auto-detect dark mode preference -----------------------------------
+  // Mirror the user's OS-level `prefers-color-scheme` onto the <html> element
+  // as `data-doc-reader-theme="dark|light"` while reader mode is active. The
+  // attribute is the single hook the article + shadow UI use to pick palette,
+  // so we never need to manually toggle classes elsewhere. The MediaQueryList
+  // listener stays attached for the page lifetime so theme flips while the
+  // reader is open animate cleanly.
+  const THEME_ATTR = `data-${NS}-theme`;
+  const darkMql = typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-color-scheme: dark)")
+    : null;
+  function detectPreferredTheme() {
+    return darkMql && darkMql.matches ? "dark" : "light";
+  }
+  function applyTheme() {
+    if (state.enabled) {
+      document.documentElement.setAttribute(THEME_ATTR, state.theme);
+    } else {
+      document.documentElement.removeAttribute(THEME_ATTR);
+    }
+  }
+  function onThemeChange() {
+    const next = detectPreferredTheme();
+    if (next === state.theme) return;
+    state.theme = next;
+    if (state.enabled) applyTheme();
+  }
+  state.theme = detectPreferredTheme();
+  if (darkMql) {
+    if (typeof darkMql.addEventListener === "function") {
+      darkMql.addEventListener("change", onThemeChange);
+    } else if (typeof darkMql.addListener === "function") {
+      darkMql.addListener(onThemeChange);
+    }
+  }
 
   function clampWidth(n) {
     n = Math.round(Number(n) || WIDTH_DEFAULT);
@@ -534,6 +571,8 @@
     const root = ensureRoot();
     if (state.enabled) {
       document.documentElement.classList.add(ACTIVE_CLASS);
+      state.theme = detectPreferredTheme();
+      applyTheme();
       applyWidth();
       applyTypography();
       root.removeAttribute("hidden");
@@ -551,6 +590,7 @@
       restoreSingleColumn();
       restoreNoise();
       document.documentElement.classList.remove(ACTIVE_CLASS);
+      applyTheme();
       // Keep the shadow host mounted; hide so future features can reuse it.
       root.setAttribute("hidden", "");
     }
@@ -1785,6 +1825,9 @@
         return true;
       case "doc-reader/status":
         sendResponse({ ...state });
+        return true;
+      case "doc-reader/get-theme":
+        sendResponse({ theme: state.theme, auto: true });
         return true;
       case "doc-reader/detect":
         sendResponse({ supported: state.supported, site: state.site });

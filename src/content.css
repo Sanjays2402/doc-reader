@@ -132,6 +132,109 @@ html.doc-reader-active [data-doc-reader-article="1"] pre {
   overflow-x: auto;
 }
 
+/* Auto-detect dark mode preference.
+   The content script writes `data-doc-reader-theme="light|dark"` onto the
+   <html> element while reader mode is active, mirroring the OS-level
+   `prefers-color-scheme`. Both themes get a deliberate palette so the
+   reader looks intentional on docs sites that ship one but not the
+   other (e.g. Tailwind defaults to a dark page, MDN to light). */
+html.doc-reader-active[data-doc-reader-theme] {
+  --doc-reader-bg: #fafafa;
+  --doc-reader-ink: #15151a;
+  --doc-reader-muted: #51515c;
+  --doc-reader-rule: rgba(20, 20, 26, 0.08);
+  --doc-reader-link: #2563d9;
+  --doc-reader-code-bg: rgba(20, 20, 26, 0.05);
+  --doc-reader-code-ink: #1d1d22;
+  --doc-reader-pre-bg: #0f1117;
+  --doc-reader-pre-ink: #e7e9f0;
+  --doc-reader-blockquote: rgba(20, 20, 26, 0.04);
+}
+html.doc-reader-active[data-doc-reader-theme="dark"] {
+  --doc-reader-bg: #0d0d11;
+  --doc-reader-ink: #f0f0f5;
+  --doc-reader-muted: #a5a5b3;
+  --doc-reader-rule: rgba(255, 255, 255, 0.10);
+  --doc-reader-link: #8ab4ff;
+  --doc-reader-code-bg: rgba(255, 255, 255, 0.08);
+  --doc-reader-code-ink: #ffd6a0;
+  --doc-reader-pre-bg: #07080c;
+  --doc-reader-pre-ink: #e7e9f0;
+  --doc-reader-blockquote: rgba(255, 255, 255, 0.04);
+}
+html.doc-reader-active[data-doc-reader-theme] body {
+  background: var(--doc-reader-bg) !important;
+  transition:
+    background 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] {
+  color: var(--doc-reader-ink) !important;
+  background: transparent !important;
+  transition:
+    color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    max-width 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    font-size 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    line-height 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    font-family 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] :where(
+  p, li, dd, dt, h1, h2, h3, h4, h5, h6, span, em, strong, figcaption, summary
+) {
+  color: inherit !important;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] :where(small, time) {
+  color: var(--doc-reader-muted) !important;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] a {
+  color: var(--doc-reader-link) !important;
+  text-decoration-color: color-mix(in oklab, var(--doc-reader-link) 50%, transparent);
+  text-underline-offset: 2px;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] hr {
+  border: none !important;
+  border-top: 1px solid var(--doc-reader-rule) !important;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] blockquote {
+  background: var(--doc-reader-blockquote) !important;
+  border-left: 3px solid var(--doc-reader-rule) !important;
+  border-radius: 8px;
+  padding: 12px 16px !important;
+  margin: 16px 0 !important;
+  color: inherit !important;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] :not(pre) > code {
+  background: var(--doc-reader-code-bg) !important;
+  color: var(--doc-reader-code-ink) !important;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.92em;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] pre {
+  background: var(--doc-reader-pre-bg) !important;
+  color: var(--doc-reader-pre-ink) !important;
+  border: 1px solid var(--doc-reader-rule) !important;
+  border-radius: 12px;
+  padding: 14px 16px !important;
+  margin: 16px 0 !important;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] pre code {
+  background: transparent !important;
+  color: inherit !important;
+  padding: 0;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] table {
+  border-collapse: collapse;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] :where(th, td) {
+  border-bottom: 1px solid var(--doc-reader-rule) !important;
+  padding: 8px 12px !important;
+}
+html.doc-reader-active[data-doc-reader-theme] [data-doc-reader-article="1"] img {
+  border-radius: 8px;
+}
+
 /* Highlight tool — 4 colors, persisted per URL.
    Marks are inserted into the article subtree and tagged with a color
    id; we set background + ink color via attribute selectors so the same
