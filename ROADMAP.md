@@ -12,7 +12,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Font size + line-height controls
 - [x] Serif/sans/mono toggle
 - [x] Bookmark current section
-- [ ] Bookmarks list popup with search
+- [x] Bookmarks list popup with search
 - [ ] Highlight tool (4 colors, persisted per URL)
 - [ ] Auto-detect dark mode preference
 - [ ] Print-friendly stylesheet

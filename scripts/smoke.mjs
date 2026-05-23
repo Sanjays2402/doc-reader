@@ -87,4 +87,45 @@ for (const needle of [
   }
 }
 
+// Popup must render the bookmarks-list view with search.
+const popupHtml = fs.readFileSync("src/popup.html", "utf8");
+for (const needle of [
+  "id=\"search-input\"",
+  "id=\"root\"",
+  "id=\"tpl-group\"",
+  "id=\"tpl-item\"",
+  "id=\"tpl-empty\"",
+  "Search bookmarks",
+]) {
+  if (!popupHtml.includes(needle)) { console.error("popup.html missing:", needle); process.exit(1); }
+}
+if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(popupHtml)) {
+  console.error("popup.html must not contain emoji (use inline SVG icons)"); process.exit(1);
+}
+
+const popupJs = fs.readFileSync("src/popup.js", "utf8");
+for (const needle of [
+  "doc-reader:bookmarks",
+  "chrome.storage",
+  "chrome.tabs",
+  "searchInput",
+  "removeBookmark",
+  "render",
+  "highlight",
+]) {
+  if (!popupJs.includes(needle)) { console.error("popup.js missing:", needle); process.exit(1); }
+}
+
+const popupCss = fs.readFileSync("src/popup.css", "utf8");
+for (const needle of [
+  "backdrop-filter",
+  "cubic-bezier(0.16, 1, 0.3, 1)",
+  ".blob",
+  ".group",
+  ".bm",
+  ".empty",
+]) {
+  if (!popupCss.includes(needle)) { console.error("popup.css missing:", needle); process.exit(1); }
+}
+
 console.log("\u2713 smoke ok");
