@@ -17,4 +17,28 @@ if (!Array.isArray(cs.matches) || cs.matches.length < 5) {
   console.error("content_scripts.matches must cover the supported doc sites"); process.exit(1);
 }
 for (const sz of [16,32,48,128]) if (!fs.existsSync(`icons/icon-${sz}.png`)) { console.error("missing icon:", sz); process.exit(1); }
+
+// Site registry: must exist, be web-accessible, and detect each supported host.
+if (!fs.existsSync("src/sites.js")) { console.error("missing src/sites.js"); process.exit(1); }
+const war = m.web_accessible_resources;
+if (!Array.isArray(war) || !war.some(r => r.resources?.includes("src/sites.js"))) {
+  console.error("src/sites.js must be in web_accessible_resources"); process.exit(1);
+}
+const { SITES, detectSite, isSupported } = await import("../src/sites.js");
+const expected = [
+  ["https://developer.mozilla.org/en-US/docs/Web/JavaScript", "mdn"],
+  ["https://react.dev/learn/thinking-in-react", "react"],
+  ["https://vercel.com/docs/functions", "vercel"],
+  ["https://tailwindcss.com/docs/installation", "tailwind"],
+  ["https://nextjs.org/docs/app/getting-started", "nextjs"],
+];
+for (const [url, id] of expected) {
+  const hit = detectSite(url);
+  if (!hit || hit.id !== id) { console.error("detect failed:", url, "->", hit?.id); process.exit(1); }
+}
+for (const bad of ["https://example.com/", "https://vercel.com/pricing", "not a url"]) {
+  if (isSupported(bad)) { console.error("false positive:", bad); process.exit(1); }
+}
+if (SITES.length < 5) { console.error("SITES registry too small"); process.exit(1); }
+
 console.log("\u2713 smoke ok");

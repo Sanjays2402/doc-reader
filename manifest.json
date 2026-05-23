@@ -48,5 +48,17 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/sites.js"],
+      "matches": [
+        "https://developer.mozilla.org/*",
+        "https://react.dev/*",
+        "https://vercel.com/docs/*",
+        "https://tailwindcss.com/docs/*",
+        "https://nextjs.org/docs/*"
+      ]
+    }
+  ]
 }

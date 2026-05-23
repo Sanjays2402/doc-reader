@@ -3,18 +3,36 @@
 // build on top of this entry point (site detection, reader toggle,
 // TOC, highlights, etc.).
 
-(() => {
+(async () => {
   if (window.__docReaderLoaded) return;
   window.__docReaderLoaded = true;
 
   const NS = "doc-reader";
   const ROOT_ATTR = `data-${NS}-root`;
 
+  // Site detection — load the registry from the extension package so
+  // both popup and content script share one source of truth.
+  let site = null;
+  try {
+    const mod = await import(chrome.runtime.getURL("src/sites.js"));
+    site = mod.detectSite(location);
+  } catch (err) {
+    // Detection is best-effort; absence shouldn't break the page.
+    if (window.__docReaderDebug) console.warn("[doc-reader] detect failed", err);
+  }
+
   const state = {
     enabled: false,
     host: location.hostname,
     href: location.href,
+    site: site ? { id: site.id, label: site.label, accent: site.accent } : null,
+    supported: !!site,
   };
+
+  // Tag the document so future CSS/features can scope to a known site.
+  if (site) {
+    document.documentElement.setAttribute(`data-${NS}-site`, site.id);
+  }
 
   function ensureRoot() {
     let root = document.querySelector(`[${ROOT_ATTR}]`);
@@ -43,6 +61,9 @@
         return true;
       case "doc-reader/status":
         sendResponse({ ...state });
+        return true;
+      case "doc-reader/detect":
+        sendResponse({ supported: state.supported, site: state.site });
         return true;
       default:
         return false;
