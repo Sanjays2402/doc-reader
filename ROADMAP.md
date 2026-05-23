@@ -17,7 +17,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Auto-detect dark mode preference
 - [x] Print-friendly stylesheet
 - [x] Liquid-glass control panel
-- [ ] Estimated reading time in header
+- [x] Estimated reading time in header
 - [ ] Copy code button on every code block
 - [ ] Syntax theme picker (3 themes: noir, paper, neon)
 - [ ] Inline image lightbox with zoom

@@ -62,6 +62,8 @@
   const ARTICLE_ATTR = "data-doc-reader-article";
   const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
   const HEADING_ATTR = "data-doc-reader-heading";
+  const META_ATTR = "data-doc-reader-meta";
+  const READ_WPM = 230;
   const TOC_REBUILD_MS = 280;
   const PROGRESS_RAF_THROTTLE = true;
 
@@ -1122,9 +1124,11 @@
       n.setAttribute(ANCESTOR_ATTR, "1");
       ancestorEls.push(n);
     }
+    ensureReadingMeta();
   }
 
   function restoreSingleColumn() {
+    removeReadingMeta();
     if (articleEl) {
       try { articleEl.removeAttribute(ARTICLE_ATTR); } catch { /* detached */ }
       articleEl = null;
@@ -1133,6 +1137,85 @@
       try { n.removeAttribute(ANCESTOR_ATTR); } catch { /* detached */ }
     }
     ancestorEls = [];
+  }
+
+  // ---- Estimated reading time --------------------------------------------
+  // Renders a small liquid-glass meta strip at the top of the article showing
+  // word count + minutes-to-read estimate. Idempotent: re-rendering only
+  // touches the DOM when the numbers actually change, so the article-level
+  // MutationObserver doesn't loop on itself.
+  function countArticleWords() {
+    if (!articleEl) return 0;
+    let text = "";
+    const walker = document.createTreeWalker(articleEl, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const p = node.parentElement;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        if (p.closest(`[${META_ATTR}="1"]`)) return NodeFilter.FILTER_REJECT;
+        if (p.closest(`[${HIDE_ATTR}="1"]`)) return NodeFilter.FILTER_REJECT;
+        if (p.closest("pre, code, script, style, noscript")) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    let n = walker.nextNode();
+    while (n) {
+      text += " " + (n.nodeValue || "");
+      n = walker.nextNode();
+    }
+    const matches = text.match(/[\p{L}\p{N}][\p{L}\p{N}'\-]*/gu);
+    return matches ? matches.length : 0;
+  }
+
+  function readingMinutes(words) {
+    if (!Number.isFinite(words) || words <= 0) return 0;
+    return Math.max(1, Math.round(words / READ_WPM));
+  }
+
+  function ensureReadingMeta() {
+    if (!state.enabled || !articleEl || !articleEl.isConnected) return;
+    const words = countArticleWords();
+    const minutes = readingMinutes(words);
+    let meta = articleEl.querySelector(`:scope > [${META_ATTR}="1"]`);
+    if (!meta) {
+      meta = document.createElement("div");
+      meta.setAttribute(META_ATTR, "1");
+      meta.setAttribute("role", "note");
+      meta.setAttribute("aria-label", "Estimated reading time");
+      // Phosphor-style inline SVGs, stroke-width 1.5, no emoji.
+      meta.innerHTML = `
+        <span class="doc-reader-meta-chip" data-doc-reader-meta-chip="time">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+          <span data-doc-reader-meta-time>1 min read</span>
+        </span>
+        <span class="doc-reader-meta-sep" aria-hidden="true"></span>
+        <span class="doc-reader-meta-chip" data-doc-reader-meta-chip="words">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 6h14" />
+            <path d="M5 12h14" />
+            <path d="M5 18h9" />
+          </svg>
+          <span data-doc-reader-meta-words>0 words</span>
+        </span>
+      `;
+      articleEl.insertBefore(meta, articleEl.firstChild);
+    }
+    const timeEl = meta.querySelector("[data-doc-reader-meta-time]");
+    const wordsEl = meta.querySelector("[data-doc-reader-meta-words]");
+    const minLabel = `${minutes} min read`;
+    const wordsLabel = `${words.toLocaleString()} word${words === 1 ? "" : "s"}`;
+    if (timeEl && timeEl.textContent !== minLabel) timeEl.textContent = minLabel;
+    if (wordsEl && wordsEl.textContent !== wordsLabel) wordsEl.textContent = wordsLabel;
+    if (words === 0) meta.setAttribute("data-empty", "1");
+    else meta.removeAttribute("data-empty");
+  }
+
+  function removeReadingMeta() {
+    if (!articleEl) return;
+    const meta = articleEl.querySelector(`:scope > [${META_ATTR}="1"]`);
+    if (meta) meta.remove();
   }
 
   async function setWidth(next, opts = {}) {
@@ -1368,6 +1451,7 @@
     tocEntries = entries;
     renderToc(entries);
     wireTocObserver(entries);
+    ensureReadingMeta();
   }
 
   function renderToc(entries) {

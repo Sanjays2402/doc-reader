@@ -132,6 +132,76 @@ html.doc-reader-active [data-doc-reader-article="1"] pre {
   overflow-x: auto;
 }
 
+/* Estimated reading time meta strip — sits at the very top of the article,
+   inside the single-column container. Liquid-glass chips with Phosphor-style
+   inline SVG icons. Hidden when empty so empty articles don't render a stub. */
+html.doc-reader-active [data-doc-reader-article="1"] > [data-doc-reader-meta="1"] {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 24px !important;
+  padding: 8px 14px;
+  width: max-content;
+  max-width: 100%;
+  font-family: var(--doc-reader-font-family) !important;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--doc-reader-muted, #51515c);
+  background: color-mix(in oklch, var(--doc-reader-bg, #fafafa) 60%, transparent);
+  border: 1px solid var(--doc-reader-rule, rgba(20, 20, 26, 0.08));
+  border-radius: 999px;
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 6px 18px rgba(20, 20, 26, 0.06);
+  animation: doc-reader-meta-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+html.doc-reader-active[data-doc-reader-theme="dark"] [data-doc-reader-article="1"] > [data-doc-reader-meta="1"] {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 6px 18px rgba(0, 0, 0, 0.35);
+}
+html.doc-reader-active [data-doc-reader-article="1"] > [data-doc-reader-meta="1"][data-empty="1"] {
+  display: none !important;
+}
+html.doc-reader-active [data-doc-reader-article="1"] > [data-doc-reader-meta="1"] .doc-reader-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--doc-reader-ink, #15151a);
+}
+html.doc-reader-active [data-doc-reader-article="1"] > [data-doc-reader-meta="1"] .doc-reader-meta-chip svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  opacity: 0.7;
+}
+html.doc-reader-active [data-doc-reader-article="1"] > [data-doc-reader-meta="1"] .doc-reader-meta-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--doc-reader-rule, rgba(20, 20, 26, 0.12));
+}
+@keyframes doc-reader-meta-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.doc-reader-active [data-doc-reader-article="1"] > [data-doc-reader-meta="1"] {
+    animation: none !important;
+  }
+}
+@media print {
+  html.doc-reader-active [data-doc-reader-article="1"] > [data-doc-reader-meta="1"] {
+    display: none !important;
+  }
+}
+
 /* Auto-detect dark mode preference.
    The content script writes `data-doc-reader-theme="light|dark"` onto the
    <html> element while reader mode is active, mirroring the OS-level
