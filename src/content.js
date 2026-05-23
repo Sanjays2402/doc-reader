@@ -21,6 +21,7 @@
   const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
   const HEADING_ATTR = "data-doc-reader-heading";
   const TOC_REBUILD_MS = 280;
+  const PROGRESS_RAF_THROTTLE = true;
 
   // ---- Site detection ------------------------------------------------------
   let site = null;
@@ -262,6 +263,33 @@
         background: rgba(255,255,255,0.32);
         box-shadow: none;
       }
+      .progress {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        pointer-events: none;
+        background: linear-gradient(180deg, rgba(22,22,28,0.32), rgba(14,14,18,0.18));
+        backdrop-filter: blur(12px) saturate(140%);
+        -webkit-backdrop-filter: blur(12px) saturate(140%);
+        opacity: 0;
+        transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        overflow: hidden;
+      }
+      .progress[data-visible="1"] {
+        opacity: 1;
+      }
+      .progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, ${accent}cc, ${accent});
+        box-shadow: 0 0 12px ${accent}99, 0 0 2px ${accent};
+        border-radius: 0 2px 2px 0;
+        transform-origin: left center;
+        transition: width 120ms cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: width;
+      }
       .pill .kbd {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 10.5px;
@@ -272,6 +300,15 @@
         color: rgba(245,245,247,0.78);
       }
     `;
+    const progress = document.createElement("div");
+    progress.className = "progress";
+    progress.setAttribute("role", "progressbar");
+    progress.setAttribute("aria-label", "Reading progress");
+    progress.setAttribute("aria-valuemin", "0");
+    progress.setAttribute("aria-valuemax", "100");
+    progress.setAttribute("aria-valuenow", "0");
+    progress.innerHTML = `<div class="progress-fill"></div>`;
+
     const pill = document.createElement("div");
     pill.className = "pill";
     pill.setAttribute("data-state", "off");
@@ -299,6 +336,7 @@
     `;
 
     shadow.appendChild(style);
+    shadow.appendChild(progress);
     shadow.appendChild(toc);
     shadow.appendChild(pill);
   }
@@ -327,7 +365,9 @@
       applySingleColumn();
       buildToc();
       watchArticleForToc();
+      startProgress();
     } else {
+      stopProgress();
       hideToc();
       restoreSingleColumn();
       restoreNoise();
@@ -352,6 +392,17 @@
     try { el = document.querySelector(site.article); } catch { el = null; }
     if (!el) return;
     articleEl = el;
+    // Refresh progress bar bindings if it's already running.
+    if (state.enabled && progressScrollAttached) {
+      if (progressResizeObs) { try { progressResizeObs.disconnect(); } catch {} progressResizeObs = null; }
+      if (typeof ResizeObserver !== "undefined") {
+        try {
+          progressResizeObs = new ResizeObserver(() => scheduleProgress());
+          progressResizeObs.observe(el);
+        } catch { progressResizeObs = null; }
+      }
+      scheduleProgress();
+    }
     el.setAttribute(ARTICLE_ATTR, "1");
     ancestorEls = [];
     for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
@@ -403,6 +454,97 @@
   let hiddenNodes = [];
   let articleEl = null;
   let ancestorEls = [];
+
+  // ---- Reading progress indicator ----------------------------------------
+  // Thin liquid-glass bar pinned to the top of the viewport. Tracks scroll
+  // position from the article's first visible pixel to its last, so the
+  // indicator hits 100% when the reader actually finishes the article (not
+  // when the host page has more footer below it).
+  let progressRafPending = false;
+  let progressScrollAttached = false;
+  let progressResizeObs = null;
+  let progressLastPct = -1;
+
+  function updateProgress() {
+    progressRafPending = false;
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const bar = root?.shadowRoot?.querySelector(".progress");
+    const fill = root?.shadowRoot?.querySelector(".progress-fill");
+    if (!bar || !fill) return;
+    if (!state.enabled) {
+      bar.removeAttribute("data-visible");
+      return;
+    }
+    const target = articleEl || document.scrollingElement || document.documentElement;
+    if (!target) return;
+    let pct = 0;
+    if (articleEl && articleEl.isConnected) {
+      const rect = articleEl.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      // Distance scrolled past the article's top, normalised over the
+      // article height minus one viewport (so reaching the bottom of the
+      // article in view = 100%).
+      const total = Math.max(1, rect.height - vh);
+      const passed = Math.min(total, Math.max(0, -rect.top));
+      pct = (passed / total) * 100;
+    } else {
+      const doc = document.documentElement;
+      const total = Math.max(1, doc.scrollHeight - window.innerHeight);
+      pct = (window.scrollY / total) * 100;
+    }
+    if (!Number.isFinite(pct)) pct = 0;
+    pct = Math.max(0, Math.min(100, pct));
+    const rounded = Math.round(pct * 10) / 10; // 0.1% steps — avoids thrash
+    if (rounded === progressLastPct) return;
+    progressLastPct = rounded;
+    fill.style.width = `${rounded}%`;
+    bar.setAttribute("aria-valuenow", String(Math.round(rounded)));
+    bar.setAttribute("data-visible", "1");
+  }
+
+  function scheduleProgress() {
+    if (progressRafPending) return;
+    progressRafPending = true;
+    if (PROGRESS_RAF_THROTTLE && typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(updateProgress);
+    } else {
+      setTimeout(updateProgress, 16);
+    }
+  }
+
+  function startProgress() {
+    if (!progressScrollAttached) {
+      window.addEventListener("scroll", scheduleProgress, { passive: true });
+      window.addEventListener("resize", scheduleProgress, { passive: true });
+      progressScrollAttached = true;
+    }
+    if (!progressResizeObs && typeof ResizeObserver !== "undefined" && articleEl) {
+      try {
+        progressResizeObs = new ResizeObserver(() => scheduleProgress());
+        progressResizeObs.observe(articleEl);
+      } catch { progressResizeObs = null; }
+    }
+    progressLastPct = -1;
+    scheduleProgress();
+  }
+
+  function stopProgress() {
+    if (progressScrollAttached) {
+      window.removeEventListener("scroll", scheduleProgress);
+      window.removeEventListener("resize", scheduleProgress);
+      progressScrollAttached = false;
+    }
+    if (progressResizeObs) {
+      try { progressResizeObs.disconnect(); } catch {}
+      progressResizeObs = null;
+    }
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const bar = root?.shadowRoot?.querySelector(".progress");
+    const fill = root?.shadowRoot?.querySelector(".progress-fill");
+    if (bar) bar.removeAttribute("data-visible");
+    if (fill) fill.style.width = "0%";
+    progressLastPct = -1;
+  }
 
   // ---- Persistent TOC sidebar (h2/h3) -------------------------------------
   let tocEntries = [];      // [{ id, text, level, el }]
@@ -769,6 +911,12 @@
         return true;
       case "doc-reader/set-width":
         setWidth(msg.width).then((w) => sendResponse({ width: w }));
+        return true;
+      case "doc-reader/progress":
+        sendResponse({
+          enabled: state.enabled,
+          percent: state.enabled ? Math.max(0, progressLastPct) : 0,
+        });
         return true;
       case "doc-reader/toc":
         sendResponse({

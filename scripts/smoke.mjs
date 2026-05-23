@@ -77,6 +77,9 @@ for (const needle of [
   "toc-list",
   "On this page",
   "IntersectionObserver",
+  "progress-fill",
+  "updateProgress",
+  "Reading progress",
 ]) {
   if (!contentSrc.includes(needle)) {
     console.error("content.js missing reader-toggle token:", needle);

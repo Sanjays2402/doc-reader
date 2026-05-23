@@ -8,7 +8,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Strip nav, sidebar, ads — keep article + code blocks
 - [x] Single-column layout with adjustable max-width
 - [x] Persistent TOC sidebar from h2/h3
-- [ ] Reading progress indicator
+- [x] Reading progress indicator
 - [ ] Font size + line-height controls
 - [ ] Serif/sans/mono toggle
 - [ ] Bookmark current section
