@@ -10,6 +10,12 @@
   <div class="blob blob-b" aria-hidden="true"></div>
 
   <header class="topbar">
+    <button id="back-btn" class="icon-btn" title="Back" aria-label="Back to bookmarks" hidden>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15 6 9 12l6 6"/>
+      </svg>
+    </button>
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
@@ -20,7 +26,7 @@
           <path d="M8.5 7.5h7M8.5 11h7M8.5 14.5h4.5"/>
         </svg>
       </span>
-      <div class="title">Doc Reader</div>
+      <div class="title" id="view-title">Doc Reader</div>
     </div>
     <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
@@ -50,6 +56,31 @@
   </section>
 
   <main id="root" class="content" role="list" aria-label="Bookmarked sections"></main>
+
+  <section id="settings-view" class="content settings" aria-label="Per-site settings" hidden>
+    <div class="settings-head">
+      <h2 class="settings-title">Sites</h2>
+      <p class="settings-hint">Toggle Doc Reader off on sites you'd rather read raw.</p>
+    </div>
+    <ul id="site-list" class="site-list"></ul>
+  </section>
+
+  <template id="tpl-site-row">
+    <li class="site-row">
+      <div class="site-info">
+        <span class="site-dot" aria-hidden="true"></span>
+        <div class="site-meta">
+          <span class="site-label"></span>
+          <span class="site-host"></span>
+        </div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" class="switch-input">
+        <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        <span class="sr-only switch-label"></span>
+      </label>
+    </li>
+  </template>
 
   <template id="tpl-group">
     <article class="group" role="listitem">

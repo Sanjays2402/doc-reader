@@ -25,5 +25,5 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Export current article to Markdown
 - [x] Focus mode (dims everything except current paragraph)
 - [x] Search-in-page overlay with match navigation
-- [ ] Per-site enable/disable settings panel
+- [x] Per-site enable/disable settings panel
 - [ ] Recently read history (last 20 docs)

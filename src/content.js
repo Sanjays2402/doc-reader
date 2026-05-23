@@ -12,6 +12,7 @@
   const ACTIVE_CLASS = `${NS}-active`; // "doc-reader-active"
 
   const STORAGE_KEY = `${NS}:enabled`;
+  const SITE_PREFS_KEY = `${NS}:site-prefs`;
   const WIDTH_STORAGE_KEY = `${NS}:width`;
   const FONT_STORAGE_KEY = `${NS}:font-size`;
   const LH_STORAGE_KEY = `${NS}:line-height`;
@@ -100,12 +101,43 @@
     if (window.__docReaderDebug) console.warn("[doc-reader] detect failed", err);
   }
 
+  // ---- Per-site enable/disable preference ----------------------------------
+  // Settings panel writes `{ [siteId]: boolean }` to chrome.storage.local under
+  // SITE_PREFS_KEY. Default is enabled; only an explicit `false` disables a
+  // supported site. A disabled site behaves like an unsupported one: no auto
+  // activation, Shift+R no-ops, but the user can still re-enable in the popup.
+  let siteAllowed = true;
+  async function loadSiteAllowed() {
+    if (!site) return true;
+    try {
+      const got = await chrome.storage?.local?.get?.(SITE_PREFS_KEY);
+      const map = got?.[SITE_PREFS_KEY];
+      if (map && typeof map === "object" && map[site.id] === false) return false;
+    } catch { /* storage unavailable */ }
+    return true;
+  }
+  siteAllowed = await loadSiteAllowed();
+  // React to live changes from the popup so toggling off immediately
+  // disables reader mode in any open tabs.
+  try {
+    chrome.storage?.onChanged?.addListener?.((changes, area) => {
+      if (area !== "local" || !site) return;
+      if (!changes[SITE_PREFS_KEY]) return;
+      const next = changes[SITE_PREFS_KEY].newValue || {};
+      const allowed = next[site.id] !== false;
+      if (allowed === siteAllowed) return;
+      siteAllowed = allowed;
+      state.supported = !!site && siteAllowed;
+      if (!allowed && state.enabled) setEnabled(false, { flash: false });
+    });
+  } catch { /* noop */ }
+
   const state = {
     enabled: false,
     host: location.hostname,
     href: location.href,
     site: site ? { id: site.id, label: site.label, accent: site.accent } : null,
-    supported: !!site,
+    supported: !!site && siteAllowed,
     width: WIDTH_DEFAULT,
     fontSize: FONT_DEFAULT,
     lineHeight: LH_DEFAULT,

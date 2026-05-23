@@ -105,6 +105,10 @@ for (const needle of [
   "id=\"tpl-item\"",
   "id=\"tpl-empty\"",
   "Search bookmarks",
+  "id=\"settings-view\"",
+  "id=\"site-list\"",
+  "id=\"tpl-site-row\"",
+  "id=\"back-btn\"",
 ]) {
   if (!popupHtml.includes(needle)) { console.error("popup.html missing:", needle); process.exit(1); }
 }
@@ -121,6 +125,10 @@ for (const needle of [
   "removeBookmark",
   "render",
   "highlight",
+  "doc-reader:site-prefs",
+  "renderSites",
+  "setView",
+  "setSiteEnabled",
 ]) {
   if (!popupJs.includes(needle)) { console.error("popup.js missing:", needle); process.exit(1); }
 }

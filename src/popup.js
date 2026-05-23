@@ -6,12 +6,24 @@
 // section titles + URLs.
 
 const BOOKMARK_KEY = "doc-reader:bookmarks";
+const SITE_PREFS_KEY = "doc-reader:site-prefs";
 
 /** @type {Record<string, Array<{id:string,text:string,level:number,addedAt:number}>>} */
 let bookmarkMap = {};
 let query = "";
+/** @type {Record<string, boolean>} per-site enable map keyed by site id */
+let sitePrefs = {};
+let sites = [];
+let currentView = "bookmarks"; // "bookmarks" | "settings"
 
 const root = document.getElementById("root");
+const settingsView = document.getElementById("settings-view");
+const siteListEl = document.getElementById("site-list");
+const tplSiteRow = /** @type {HTMLTemplateElement} */ (document.getElementById("tpl-site-row"));
+const viewTitle = document.getElementById("view-title");
+const searchSection = document.querySelector(".search");
+const backBtn = document.getElementById("back-btn");
+const settingsBtn = document.getElementById("settings-btn");
 const searchInput = /** @type {HTMLInputElement} */ (document.getElementById("search-input"));
 const searchClear = document.getElementById("search-clear");
 const tplGroup = /** @type {HTMLTemplateElement} */ (document.getElementById("tpl-group"));
@@ -29,10 +41,9 @@ try {
 } catch { /* noop */ }
 
 document.getElementById("settings-btn")?.addEventListener("click", () => {
-  // Settings live in the in-page panel for now. Surface a hint instead
-  // of throwing an alert — alerts feel like 2014.
-  flash("Open any doc page and press Shift+R for controls.");
+  setView(currentView === "settings" ? "bookmarks" : "settings");
 });
+backBtn?.addEventListener("click", () => setView("bookmarks"));
 
 searchInput?.addEventListener("input", () => {
   query = searchInput.value.trim();
@@ -68,15 +79,67 @@ async function loadBookmarks() {
   }
 }
 
+async function loadSitePrefs() {
+  try {
+    const got = await chrome.storage?.local?.get?.(SITE_PREFS_KEY);
+    const map = got?.[SITE_PREFS_KEY];
+    sitePrefs = map && typeof map === "object" ? map : {};
+  } catch {
+    sitePrefs = {};
+  }
+}
+
+async function loadSites() {
+  try {
+    const mod = await import(chrome.runtime.getURL("src/sites.js"));
+    sites = Array.isArray(mod.SITES) ? mod.SITES : [];
+  } catch {
+    sites = [];
+  }
+}
+
+function isSiteEnabled(siteId) {
+  // Default-on: only explicit `false` disables.
+  return sitePrefs[siteId] !== false;
+}
+
+async function setSiteEnabled(siteId, enabled) {
+  sitePrefs = { ...sitePrefs, [siteId]: !!enabled };
+  try {
+    await chrome.storage?.local?.set?.({ [SITE_PREFS_KEY]: sitePrefs });
+  } catch { /* noop */ }
+}
+
+function setView(view) {
+  currentView = view === "settings" ? "settings" : "bookmarks";
+  const showSettings = currentView === "settings";
+  if (root) root.hidden = showSettings;
+  if (settingsView) settingsView.hidden = !showSettings;
+  if (searchSection) searchSection.hidden = showSettings;
+  if (backBtn) backBtn.hidden = !showSettings;
+  if (viewTitle) viewTitle.textContent = showSettings ? "Settings" : "Doc Reader";
+  if (settingsBtn) {
+    settingsBtn.setAttribute("aria-pressed", showSettings ? "true" : "false");
+    settingsBtn.title = showSettings ? "Close settings" : "Settings";
+  }
+  if (showSettings) renderSites();
+  else render();
+}
+
 // Live updates: if a content script bookmarks something while the popup
 // is open (popup lifetime is short, but Chrome keeps it alive enough for
 // this to matter), reflect it immediately.
 try {
   chrome.storage?.onChanged?.addListener?.((changes, area) => {
     if (area !== "local") return;
-    if (!changes[BOOKMARK_KEY]) return;
-    bookmarkMap = changes[BOOKMARK_KEY].newValue || {};
-    render();
+    if (changes[BOOKMARK_KEY]) {
+      bookmarkMap = changes[BOOKMARK_KEY].newValue || {};
+      if (currentView === "bookmarks") render();
+    }
+    if (changes[SITE_PREFS_KEY]) {
+      sitePrefs = changes[SITE_PREFS_KEY].newValue || {};
+      if (currentView === "settings") renderSites();
+    }
   });
 } catch { /* noop */ }
 
@@ -289,8 +352,37 @@ function flash(msg) {
 }
 
 (async function init() {
-  await loadBookmarks();
+  await Promise.all([loadBookmarks(), loadSitePrefs(), loadSites()]);
   render();
   // Defer focus until after first paint so the layout settles.
   requestAnimationFrame(() => searchInput?.focus());
 })();
+
+function renderSites() {
+  if (!siteListEl || !tplSiteRow) return;
+  siteListEl.replaceChildren();
+  if (!sites.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "No sites available.";
+    siteListEl.appendChild(li);
+    return;
+  }
+  for (const s of sites) {
+    const frag = tplSiteRow.content.cloneNode(true);
+    const row = frag.querySelector(".site-row");
+    row.style.setProperty("--site-accent", s.accent || "#7aa2ff");
+    row.dataset.siteId = s.id;
+    row.querySelector(".site-label").textContent = s.label;
+    row.querySelector(".site-host").textContent = (s.hosts && s.hosts[0]) || "";
+    const input = row.querySelector(".switch-input");
+    const enabled = isSiteEnabled(s.id);
+    input.checked = enabled;
+    input.setAttribute("aria-label", `Enable Doc Reader on ${s.label}`);
+    row.querySelector(".switch-label").textContent = `Toggle ${s.label}`;
+    input.addEventListener("change", async () => {
+      await setSiteEnabled(s.id, input.checked);
+    });
+    siteListEl.appendChild(frag);
+  }
+}
