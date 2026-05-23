@@ -7,6 +7,7 @@
 
 const BOOKMARK_KEY = "doc-reader:bookmarks";
 const SITE_PREFS_KEY = "doc-reader:site-prefs";
+const HISTORY_KEY = "doc-reader:history";
 
 /** @type {Record<string, Array<{id:string,text:string,level:number,addedAt:number}>>} */
 let bookmarkMap = {};
@@ -14,12 +15,19 @@ let query = "";
 /** @type {Record<string, boolean>} per-site enable map keyed by site id */
 let sitePrefs = {};
 let sites = [];
-let currentView = "bookmarks"; // "bookmarks" | "settings"
+/** @type {Array<{url:string,title:string,siteId:string,siteLabel:string,accent:string,visitedAt:number}>} */
+let history = [];
+let currentView = "bookmarks"; // "bookmarks" | "settings" | "history"
 
 const root = document.getElementById("root");
 const settingsView = document.getElementById("settings-view");
 const siteListEl = document.getElementById("site-list");
 const tplSiteRow = /** @type {HTMLTemplateElement} */ (document.getElementById("tpl-site-row"));
+const tplHistoryRow = /** @type {HTMLTemplateElement} */ (document.getElementById("tpl-history-row"));
+const historyView = document.getElementById("history-view");
+const historyListEl = document.getElementById("history-list");
+const historyClearBtn = document.getElementById("history-clear");
+const historyBtn = document.getElementById("history-btn");
 const viewTitle = document.getElementById("view-title");
 const searchSection = document.querySelector(".search");
 const backBtn = document.getElementById("back-btn");
@@ -43,6 +51,10 @@ try {
 document.getElementById("settings-btn")?.addEventListener("click", () => {
   setView(currentView === "settings" ? "bookmarks" : "settings");
 });
+historyBtn?.addEventListener("click", () => {
+  setView(currentView === "history" ? "bookmarks" : "history");
+});
+historyClearBtn?.addEventListener("click", () => clearHistory());
 backBtn?.addEventListener("click", () => setView("bookmarks"));
 
 searchInput?.addEventListener("input", () => {
@@ -89,6 +101,32 @@ async function loadSitePrefs() {
   }
 }
 
+async function loadHistory() {
+  try {
+    const got = await chrome.storage?.local?.get?.(HISTORY_KEY);
+    const list = got?.[HISTORY_KEY];
+    history = Array.isArray(list) ? list.filter((e) => e && e.url) : [];
+  } catch {
+    history = [];
+  }
+}
+
+async function clearHistory() {
+  history = [];
+  try {
+    await chrome.storage?.local?.set?.({ [HISTORY_KEY]: [] });
+  } catch { /* noop */ }
+  if (currentView === "history") renderHistory();
+}
+
+async function removeHistoryEntry(url) {
+  history = history.filter((e) => e.url !== url);
+  try {
+    await chrome.storage?.local?.set?.({ [HISTORY_KEY]: history });
+  } catch { /* noop */ }
+  if (currentView === "history") renderHistory();
+}
+
 async function loadSites() {
   try {
     const mod = await import(chrome.runtime.getURL("src/sites.js"));
@@ -111,18 +149,32 @@ async function setSiteEnabled(siteId, enabled) {
 }
 
 function setView(view) {
-  currentView = view === "settings" ? "settings" : "bookmarks";
+  currentView = view === "settings" ? "settings" : view === "history" ? "history" : "bookmarks";
   const showSettings = currentView === "settings";
-  if (root) root.hidden = showSettings;
+  const showHistory = currentView === "history";
+  const showBookmarks = currentView === "bookmarks";
+  if (root) root.hidden = !showBookmarks;
   if (settingsView) settingsView.hidden = !showSettings;
-  if (searchSection) searchSection.hidden = showSettings;
-  if (backBtn) backBtn.hidden = !showSettings;
-  if (viewTitle) viewTitle.textContent = showSettings ? "Settings" : "Doc Reader";
+  if (historyView) historyView.hidden = !showHistory;
+  if (searchSection) searchSection.hidden = !showBookmarks;
+  if (backBtn) backBtn.hidden = showBookmarks;
+  if (viewTitle) {
+    viewTitle.textContent = showSettings
+      ? "Settings"
+      : showHistory
+        ? "Recently read"
+        : "Doc Reader";
+  }
   if (settingsBtn) {
     settingsBtn.setAttribute("aria-pressed", showSettings ? "true" : "false");
     settingsBtn.title = showSettings ? "Close settings" : "Settings";
   }
+  if (historyBtn) {
+    historyBtn.setAttribute("aria-pressed", showHistory ? "true" : "false");
+    historyBtn.title = showHistory ? "Close history" : "Recently read";
+  }
   if (showSettings) renderSites();
+  else if (showHistory) renderHistory();
   else render();
 }
 
@@ -139,6 +191,11 @@ try {
     if (changes[SITE_PREFS_KEY]) {
       sitePrefs = changes[SITE_PREFS_KEY].newValue || {};
       if (currentView === "settings") renderSites();
+    }
+    if (changes[HISTORY_KEY]) {
+      const next = changes[HISTORY_KEY].newValue;
+      history = Array.isArray(next) ? next.filter((e) => e && e.url) : [];
+      if (currentView === "history") renderHistory();
     }
   });
 } catch { /* noop */ }
@@ -352,7 +409,7 @@ function flash(msg) {
 }
 
 (async function init() {
-  await Promise.all([loadBookmarks(), loadSitePrefs(), loadSites()]);
+  await Promise.all([loadBookmarks(), loadSitePrefs(), loadSites(), loadHistory()]);
   render();
   // Defer focus until after first paint so the layout settles.
   requestAnimationFrame(() => searchInput?.focus());
@@ -384,5 +441,61 @@ function renderSites() {
       await setSiteEnabled(s.id, input.checked);
     });
     siteListEl.appendChild(frag);
+  }
+}
+
+function relativeTime(ts) {
+  const now = Date.now();
+  const diff = Math.max(0, now - (Number(ts) || 0));
+  const s = Math.round(diff / 1000);
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  if (d < 7) return `${d}d ago`;
+  try { return new Date(ts).toLocaleDateString(); } catch { return `${d}d ago`; }
+}
+
+function renderHistory() {
+  if (!historyListEl || !tplHistoryRow) return;
+  historyListEl.replaceChildren();
+  const entries = (history || [])
+    .filter((e) => e && e.url)
+    .sort((a, b) => (b.visitedAt || 0) - (a.visitedAt || 0))
+    .slice(0, 20);
+
+  if (historyClearBtn) historyClearBtn.hidden = !entries.length;
+
+  if (!entries.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    const wrap = tplEmpty.content.cloneNode(true);
+    wrap.querySelector(".empty-title").textContent = "Nothing read yet";
+    wrap.querySelector(".empty-hint").textContent =
+      "Open a supported docs page — MDN, React, Vercel, Tailwind, or Next.js — and it'll appear here.";
+    li.appendChild(wrap);
+    historyListEl.appendChild(li);
+    return;
+  }
+
+  for (const e of entries) {
+    const frag = tplHistoryRow.content.cloneNode(true);
+    const row = frag.querySelector(".hist-row");
+    row.style.setProperty("--site-accent", e.accent || "#7aa2ff");
+    const titleEl = row.querySelector(".hist-title");
+    titleEl.textContent = e.title || prettyPath(e.url);
+    titleEl.title = e.title || e.url;
+    row.querySelector(".hist-site").textContent = e.siteLabel || siteLabelFor(e.url);
+    row.querySelector(".hist-when").textContent = relativeTime(e.visitedAt);
+    const openBtn = row.querySelector(".hist-open");
+    openBtn.addEventListener("click", () => openBookmark(e.url));
+    const rmBtn = row.querySelector(".hist-remove");
+    rmBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      removeHistoryEntry(e.url);
+    });
+    historyListEl.appendChild(frag);
   }
 }

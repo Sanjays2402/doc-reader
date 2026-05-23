@@ -28,6 +28,14 @@
       </span>
       <div class="title" id="view-title">Doc Reader</div>
     </div>
+    <button id="history-btn" class="icon-btn" title="Recently read" aria-label="Recently read history">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 12a9 9 0 1 0 3-6.7"/>
+        <path d="M3 4v5h5"/>
+        <path d="M12 7v5l3 2"/>
+      </svg>
+    </button>
     <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -64,6 +72,44 @@
     </div>
     <ul id="site-list" class="site-list"></ul>
   </section>
+
+  <section id="history-view" class="content history" aria-label="Recently read docs" hidden>
+    <div class="history-head">
+      <div>
+        <h2 class="history-title">Recently read</h2>
+        <p class="history-hint">Last 20 docs you opened with Doc Reader.</p>
+      </div>
+      <button id="history-clear" class="icon-btn ghost" title="Clear history" aria-label="Clear history" hidden>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+          <path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/>
+        </svg>
+      </button>
+    </div>
+    <ul id="history-list" class="history-list"></ul>
+  </section>
+
+  <template id="tpl-history-row">
+    <li class="hist-row">
+      <button class="hist-open" type="button">
+        <span class="hist-dot" aria-hidden="true"></span>
+        <span class="hist-meta">
+          <span class="hist-title"></span>
+          <span class="hist-sub">
+            <span class="hist-site"></span>
+            <span class="hist-when"></span>
+          </span>
+        </span>
+      </button>
+      <button class="icon-btn ghost hist-remove" type="button" title="Remove from history" aria-label="Remove from history">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m6 6 12 12M18 6 6 18"/>
+        </svg>
+      </button>
+    </li>
+  </template>
 
   <template id="tpl-site-row">
     <li class="site-row">

@@ -26,4 +26,4 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Focus mode (dims everything except current paragraph)
 - [x] Search-in-page overlay with match navigation
 - [x] Per-site enable/disable settings panel
-- [ ] Recently read history (last 20 docs)
+- [x] Recently read history (last 20 docs)

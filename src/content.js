@@ -19,6 +19,8 @@
   const FAMILY_STORAGE_KEY = `${NS}:font-family`;
   const SYNTAX_STORAGE_KEY = `${NS}:syntax-theme`;
   const BOOKMARK_STORAGE_KEY = `${NS}:bookmarks`;
+  const HISTORY_STORAGE_KEY = `${NS}:history`;
+  const HISTORY_MAX = 20;
   const HIGHLIGHT_STORAGE_KEY = `${NS}:highlights`;
   const FOCUS_STORAGE_KEY = `${NS}:focus`;
   const FOCUS_ATTR = `data-${NS}-focus`;
@@ -2940,6 +2942,39 @@
   function toggleEnabled() {
     return setEnabled(!state.enabled);
   }
+
+  // ---- Recently read history ---------------------------------------------
+  // Stored as a flat array of { url, title, siteId, siteLabel, accent, visitedAt }
+  // under HISTORY_STORAGE_KEY, newest first, deduped by canonical URL,
+  // capped at HISTORY_MAX entries.
+  function bestPageTitle() {
+    try {
+      const h1 = document.querySelector("h1");
+      const t = (h1?.textContent || "").replace(/\s+/g, " ").trim();
+      if (t) return t;
+    } catch { /* noop */ }
+    const dt = (document.title || "").replace(/\s+/g, " ").trim();
+    return dt || location.pathname || location.href;
+  }
+  async function recordHistoryVisit() {
+    if (!site || !state.supported) return;
+    const url = canonicalUrlKey();
+    if (!url) return;
+    const entry = {
+      url,
+      title: bestPageTitle(),
+      siteId: site.id,
+      siteLabel: site.label,
+      accent: site.accent || "#7aa2ff",
+      visitedAt: Date.now(),
+    };
+    try {
+      const got = await chrome.storage?.local?.get?.(HISTORY_STORAGE_KEY);
+      const prev = Array.isArray(got?.[HISTORY_STORAGE_KEY]) ? got[HISTORY_STORAGE_KEY] : [];
+      const next = [entry, ...prev.filter((e) => e && e.url !== url)].slice(0, HISTORY_MAX);
+      await chrome.storage?.local?.set?.({ [HISTORY_STORAGE_KEY]: next });
+    } catch { /* storage unavailable */ }
+  }
   // Expose for tests / debugging without polluting global typings.
   window.__docReaderToggle = toggleEnabled;
 
@@ -4386,6 +4421,8 @@
     state.focus = await loadFocus();
     const wasEnabled = await loadEnabled();
     if (wasEnabled) setEnabled(true, { flash: false });
+    // Record this page in the recently-read history (capped at 20).
+    try { await recordHistoryVisit(); } catch { /* noop */ }
   }
   if (window.__docReaderDebug) console.log(`[${NS}]`, "ready", state);
 })();

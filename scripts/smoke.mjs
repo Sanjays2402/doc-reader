@@ -89,6 +89,9 @@ for (const needle of [
   'data-ctl="font-size"',
   'data-ctl="line-height"',
   "doc-reader/toggle-panel",
+  "HISTORY_STORAGE_KEY",
+  "recordHistoryVisit",
+  "HISTORY_MAX",
 ]) {
   if (!contentSrc.includes(needle)) {
     console.error("content.js missing reader-toggle token:", needle);
@@ -109,6 +112,11 @@ for (const needle of [
   "id=\"site-list\"",
   "id=\"tpl-site-row\"",
   "id=\"back-btn\"",
+  "id=\"history-view\"",
+  "id=\"history-list\"",
+  "id=\"history-btn\"",
+  "id=\"tpl-history-row\"",
+  "Recently read",
 ]) {
   if (!popupHtml.includes(needle)) { console.error("popup.html missing:", needle); process.exit(1); }
 }
@@ -129,6 +137,10 @@ for (const needle of [
   "renderSites",
   "setView",
   "setSiteEnabled",
+  "doc-reader:history",
+  "renderHistory",
+  "removeHistoryEntry",
+  "clearHistory",
 ]) {
   if (!popupJs.includes(needle)) { console.error("popup.js missing:", needle); process.exit(1); }
 }
@@ -141,6 +153,7 @@ for (const needle of [
   ".group",
   ".bm",
   ".empty",
+  ".hist-row",
 ]) {
   if (!popupCss.includes(needle)) { console.error("popup.css missing:", needle); process.exit(1); }
 }
