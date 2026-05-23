@@ -1125,10 +1125,12 @@
       ancestorEls.push(n);
     }
     ensureReadingMeta();
+    ensureCopyButtons();
   }
 
   function restoreSingleColumn() {
     removeReadingMeta();
+    removeCopyButtons();
     if (articleEl) {
       try { articleEl.removeAttribute(ARTICLE_ATTR); } catch { /* detached */ }
       articleEl = null;
@@ -1216,6 +1218,118 @@
     if (!articleEl) return;
     const meta = articleEl.querySelector(`:scope > [${META_ATTR}="1"]`);
     if (meta) meta.remove();
+  }
+
+  // ---- Copy code button --------------------------------------------------
+  // Decorates every <pre> inside the article with a small liquid-glass
+  // "Copy" button. Idempotent: re-running won't double-mount the buttons,
+  // and re-mounts are no-ops so the article MutationObserver doesn't loop.
+  const PRE_ATTR = "data-doc-reader-pre";
+  const COPY_ATTR = "data-doc-reader-copy";
+
+  function getPreText(pre) {
+    // Read the actual code text, excluding our injected button.
+    const codeNode = pre.querySelector("code");
+    const src = codeNode || pre;
+    let text = "";
+    for (const child of src.childNodes) {
+      if (child.nodeType === 1 && child.hasAttribute && child.hasAttribute(COPY_ATTR)) continue;
+      text += child.textContent || "";
+    }
+    // Trim trailing newline-only content but keep internal whitespace.
+    return text.replace(/\u00a0/g, " ").replace(/\s+$/g, "");
+  }
+
+  function flashCopyButton(btn, ok) {
+    const label = btn.querySelector("[data-doc-reader-copy-label]");
+    const prev = label ? label.textContent : "";
+    btn.setAttribute("data-state", ok ? "copied" : "failed");
+    if (label) label.textContent = ok ? "Copied" : "Failed";
+    setTimeout(() => {
+      btn.removeAttribute("data-state");
+      if (label) label.textContent = prev || "Copy";
+    }, 1400);
+  }
+
+  async function copyPreText(pre, btn) {
+    const text = getPreText(pre);
+    let ok = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch { ok = false; }
+    if (!ok) {
+      // Fallback for restricted clipboard contexts.
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("aria-hidden", "true");
+        ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0;";
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand && document.execCommand("copy");
+        ta.remove();
+      } catch { ok = false; }
+    }
+    flashCopyButton(btn, !!ok);
+  }
+
+  function buildCopyButton() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "doc-reader-copy";
+    btn.setAttribute(COPY_ATTR, "1");
+    btn.setAttribute("aria-label", "Copy code to clipboard");
+    btn.setAttribute("title", "Copy code");
+    // Phosphor-style inline SVG: two stacked rounded rects. stroke-width 1.5.
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="8" y="8" width="12" height="12" rx="2.5" />
+        <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+        <path class="doc-reader-copy-check" d="M11 14l2 2 4-4" />
+      </svg>
+      <span data-doc-reader-copy-label>Copy</span>
+    `;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const pre = btn.closest("pre");
+      if (pre) copyPreText(pre, btn);
+    });
+    // Don't let inadvertent text selection inside the button bubble up.
+    btn.addEventListener("mousedown", (e) => { e.stopPropagation(); });
+    return btn;
+  }
+
+  function ensureCopyButtons() {
+    if (!state.enabled || !articleEl || !articleEl.isConnected) return;
+    let pres;
+    try { pres = articleEl.querySelectorAll("pre"); } catch { return; }
+    for (const pre of pres) {
+      // Skip pres that are too small (e.g. inline single-token snippets):
+      // any pre with non-empty text qualifies.
+      const text = (pre.textContent || "").trim();
+      if (!text) continue;
+      if (pre.getAttribute(PRE_ATTR) === "1" && pre.querySelector(`:scope > [${COPY_ATTR}="1"]`)) continue;
+      pre.setAttribute(PRE_ATTR, "1");
+      // Remove any stale button (defensive) before mounting a fresh one.
+      const stale = pre.querySelector(`:scope > [${COPY_ATTR}="1"]`);
+      if (stale) stale.remove();
+      pre.appendChild(buildCopyButton());
+    }
+  }
+
+  function removeCopyButtons() {
+    if (!articleEl) return;
+    let pres;
+    try { pres = articleEl.querySelectorAll(`pre[${PRE_ATTR}="1"]`); } catch { return; }
+    for (const pre of pres) {
+      const btn = pre.querySelector(`:scope > [${COPY_ATTR}="1"]`);
+      if (btn) btn.remove();
+      try { pre.removeAttribute(PRE_ATTR); } catch { /* detached */ }
+    }
   }
 
   async function setWidth(next, opts = {}) {
@@ -1452,6 +1566,7 @@
     renderToc(entries);
     wireTocObserver(entries);
     ensureReadingMeta();
+    ensureCopyButtons();
   }
 
   function renderToc(entries) {

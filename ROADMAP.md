@@ -18,7 +18,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Print-friendly stylesheet
 - [x] Liquid-glass control panel
 - [x] Estimated reading time in header
-- [ ] Copy code button on every code block
+- [x] Copy code button on every code block
 - [ ] Syntax theme picker (3 themes: noir, paper, neon)
 - [ ] Inline image lightbox with zoom
 - [ ] Section-collapse toggles on h2 headings

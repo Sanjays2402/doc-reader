@@ -132,6 +132,105 @@ html.doc-reader-active [data-doc-reader-article="1"] pre {
   overflow-x: auto;
 }
 
+/* Copy code button — one per <pre>. Liquid-glass pill that floats in the
+   top-right corner of the code block. Visible-on-hover/focus to keep the
+   reading surface calm, but keyboard-focusable always. Phosphor-style inline
+   SVG (stroke-width 1.5), no emoji. */
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] {
+  position: relative;
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"] {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px;
+  font-family: var(--doc-reader-font-family) !important;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  color: rgba(231, 233, 240, 0.88);
+  background: rgba(20, 22, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: saturate(180%) blur(10px);
+  -webkit-backdrop-filter: saturate(180%) blur(10px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 6px 16px rgba(0, 0, 0, 0.28);
+  user-select: none;
+  -webkit-user-select: none;
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"]:hover > [data-doc-reader-copy="1"],
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"]:focus-within > [data-doc-reader-copy="1"],
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"]:focus-visible,
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"][data-state] {
+  opacity: 1;
+  transform: translateY(0);
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"]:hover {
+  color: #fff;
+  background: rgba(36, 38, 48, 0.78);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"]:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(120, 170, 255, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 6px 16px rgba(0, 0, 0, 0.28);
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"] svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  flex: none;
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"] .doc-reader-copy-check {
+  opacity: 0;
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"][data-state="copied"] {
+  color: #b7f5c2;
+  background: rgba(40, 70, 50, 0.72);
+  border-color: rgba(140, 230, 165, 0.45);
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"][data-state="copied"] .doc-reader-copy-check {
+  opacity: 1;
+}
+html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"][data-state="failed"] {
+  color: #ffd6d6;
+  background: rgba(80, 30, 40, 0.7);
+  border-color: rgba(255, 150, 160, 0.45);
+}
+@media print {
+  html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"] {
+    display: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.doc-reader-active [data-doc-reader-article="1"] pre[data-doc-reader-pre="1"] > [data-doc-reader-copy="1"] {
+    transition: none !important;
+  }
+}
+
 /* Estimated reading time meta strip — sits at the very top of the article,
    inside the single-column container. Liquid-glass chips with Phosphor-style
    inline SVG icons. Hidden when empty so empty articles don't render a stub. */
