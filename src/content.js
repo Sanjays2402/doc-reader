@@ -17,6 +17,17 @@
   const LH_STORAGE_KEY = `${NS}:line-height`;
   const FAMILY_STORAGE_KEY = `${NS}:font-family`;
   const BOOKMARK_STORAGE_KEY = `${NS}:bookmarks`;
+  const HIGHLIGHT_STORAGE_KEY = `${NS}:highlights`;
+  const HIGHLIGHT_ATTR = "data-doc-reader-hl";
+  const HIGHLIGHT_ID_ATTR = "data-doc-reader-hl-id";
+  const HIGHLIGHT_COLOR_ATTR = "data-doc-reader-hl-color";
+  const HIGHLIGHT_COLORS = [
+    { id: "yellow", label: "Yellow", fill: "#ffd86b", ink: "#3a2e00" },
+    { id: "mint",   label: "Mint",   fill: "#9be7c0", ink: "#0a3a25" },
+    { id: "sky",    label: "Sky",    fill: "#9cc9ff", ink: "#0a2a55" },
+    { id: "pink",   label: "Pink",   fill: "#ffb0c8", ink: "#4a0a25" },
+  ];
+  const HIGHLIGHT_COLOR_IDS = HIGHLIGHT_COLORS.map((c) => c.id);
   const WIDTH_MIN = 560;
   const WIDTH_MAX = 1080;
   const WIDTH_DEFAULT = 720;
@@ -387,6 +398,82 @@
         border: 1px solid rgba(255,255,255,0.10);
         color: rgba(245,245,247,0.78);
       }
+      .hl-palette {
+        position: fixed;
+        top: 0;
+        left: 0;
+        pointer-events: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        background: linear-gradient(180deg, rgba(22,22,28,0.74), rgba(14,14,18,0.68));
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 999px;
+        box-shadow:
+          0 12px 32px rgba(0,0,0,0.40),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        opacity: 0;
+        transform: translateY(-4px) scale(0.96);
+        transition:
+          opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .hl-palette[data-visible="1"] {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      .hl-palette button {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition:
+          transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .hl-palette button:focus-visible {
+        box-shadow: 0 0 0 2px ${accent}99;
+      }
+      .hl-swatch {
+        position: relative;
+      }
+      .hl-swatch-dot {
+        display: block;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: var(--swatch, #ffd86b);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.30),
+          inset 0 -1px 0 rgba(0,0,0,0.10),
+          0 0 0 1px rgba(0,0,0,0.18);
+      }
+      .hl-swatch:hover { transform: scale(1.08); }
+      .hl-swatch:active { transform: scale(0.96); }
+      .hl-divider {
+        width: 1px;
+        height: 18px;
+        background: rgba(255,255,255,0.12);
+        margin: 0 2px;
+      }
+      .hl-remove svg {
+        width: 14px;
+        height: 14px;
+        stroke: rgba(245,245,247,0.72);
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .hl-remove:hover svg { stroke: #ff9a9a; }
+      .hl-remove:hover { background: rgba(255,154,154,0.10); }
     `;
     const progress = document.createElement("div");
     progress.className = "progress";
@@ -455,9 +542,12 @@
       buildToc();
       watchArticleForToc();
       startProgress();
+      scheduleHighlightRestore();
     } else {
       stopProgress();
       hideToc();
+      hidePalette();
+      clearAllHighlightMarks();
       restoreSingleColumn();
       restoreNoise();
       document.documentElement.classList.remove(ACTIVE_CLASS);
@@ -846,6 +936,398 @@
     for (const e of entries) {
       try { tocIO.observe(e.el); } catch {}
     }
+  }
+
+  // ---- Highlight tool (4 colors, persisted per URL) ----------------------
+  // User selects text in the article, palette appears near the selection,
+  // pick a color → wraps the selection in a <mark> and persists. On reader
+  // re-enable / page reload we walk the article text and restore wrappers
+  // using saved offsets + a context fingerprint. Click an existing mark to
+  // change color or remove it. Stored under doc-reader:highlights[urlKey].
+  let highlights = [];                // active list for current URL
+  let highlightById = new Map();      // id -> entry
+  let highlightPaletteEl = null;
+  let highlightPaletteHideTimer = 0;
+  let highlightSelectionRange = null; // current selection inside article
+  let highlightTargetId = null;       // when palette is open over a mark
+  let highlightRestoreTimer = 0;
+
+  function clampHighlightColor(id) {
+    if (typeof id !== "string") return HIGHLIGHT_COLORS[0].id;
+    return HIGHLIGHT_COLOR_IDS.includes(id) ? id : HIGHLIGHT_COLORS[0].id;
+  }
+
+  function newHighlightId() {
+    return `hl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  function articleTextOffset(node, offsetInNode) {
+    // Compute the character offset of (node, offsetInNode) from the start
+    // of articleEl's textContent. Returns -1 if the node is not inside the
+    // current article.
+    if (!articleEl || !node) return -1;
+    if (!articleEl.contains(node)) return -1;
+    const walker = document.createTreeWalker(articleEl, NodeFilter.SHOW_TEXT, null);
+    let total = 0;
+    let n;
+    while ((n = walker.nextNode())) {
+      if (n === node) return total + offsetInNode;
+      total += n.nodeValue.length;
+    }
+    // Selection may end at the boundary right after the last text node.
+    if (node.nodeType === 1 && articleEl.contains(node)) {
+      // Sum textContent up to that element.
+      return total;
+    }
+    return -1;
+  }
+
+  function pointFromOffset(targetOffset) {
+    // Walk text nodes in articleEl; return {node, offset} for the given
+    // character offset, or null if out of range.
+    if (!articleEl) return null;
+    const walker = document.createTreeWalker(articleEl, NodeFilter.SHOW_TEXT, null);
+    let total = 0;
+    let n;
+    while ((n = walker.nextNode())) {
+      const len = n.nodeValue.length;
+      if (targetOffset <= total + len) {
+        return { node: n, offset: Math.max(0, targetOffset - total) };
+      }
+      total += len;
+    }
+    return null;
+  }
+
+  function findOffsetByContext(entry) {
+    // Last-resort: search articleEl.textContent for entry.text using the
+    // saved before/after context as a fingerprint. Returns start offset or
+    // -1 when no confident match exists.
+    if (!articleEl) return -1;
+    const haystack = articleEl.textContent || "";
+    const needle = entry.text || "";
+    if (!needle) return -1;
+    const before = (entry.before || "").slice(-32);
+    const after = (entry.after || "").slice(0, 32);
+    const probe = before + needle + after;
+    if (probe.length > needle.length) {
+      const idx = haystack.indexOf(probe);
+      if (idx >= 0) return idx + before.length;
+    }
+    // Fall back to a unique occurrence of the bare needle.
+    const first = haystack.indexOf(needle);
+    if (first < 0) return -1;
+    const second = haystack.indexOf(needle, first + 1);
+    return second < 0 ? first : -1; // ambiguous → bail
+  }
+
+  function wrapRangeWithMark(range, color, id) {
+    // Wrap the contents of `range` (which may span multiple text nodes)
+    // with one or more <mark> elements that share the same id+color.
+    // Each text node intersecting the range becomes its own <mark>.
+    if (range.collapsed) return false;
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+    // Collect intersecting text nodes first to avoid live-tree surprises.
+    const root = range.commonAncestorContainer;
+    const rootEl = root.nodeType === 1 ? root : root.parentNode;
+    if (!rootEl) return false;
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        if (!range.intersectsNode(n)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    if (!nodes.length) return false;
+    let wrappedAny = false;
+    for (const tn of nodes) {
+      let from = 0;
+      let to = tn.nodeValue.length;
+      if (tn === startContainer) from = range.startOffset;
+      if (tn === endContainer) to = range.endOffset;
+      if (from >= to) continue;
+      // Skip nodes already inside a doc-reader mark — avoid nesting.
+      if (tn.parentElement && tn.parentElement.closest(`mark[${HIGHLIGHT_ATTR}="1"]`)) continue;
+      // Skip script/style.
+      const tag = tn.parentElement?.tagName;
+      if (tag === "SCRIPT" || tag === "STYLE") continue;
+      const middle = tn.splitText(from);
+      middle.splitText(to - from);
+      const mark = document.createElement("mark");
+      mark.setAttribute(HIGHLIGHT_ATTR, "1");
+      mark.setAttribute(HIGHLIGHT_ID_ATTR, id);
+      mark.setAttribute(HIGHLIGHT_COLOR_ATTR, color);
+      mark.textContent = middle.nodeValue;
+      middle.parentNode.replaceChild(mark, middle);
+      wrappedAny = true;
+    }
+    return wrappedAny;
+  }
+
+  function unwrapMarksForId(id) {
+    if (!articleEl) return;
+    const nodes = articleEl.querySelectorAll(`mark[${HIGHLIGHT_ID_ATTR}="${CSS.escape(id)}"]`);
+    for (const m of nodes) {
+      const parent = m.parentNode;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+      parent.normalize?.();
+    }
+  }
+
+  function clearAllHighlightMarks() {
+    if (!articleEl) return;
+    const nodes = articleEl.querySelectorAll(`mark[${HIGHLIGHT_ATTR}="1"]`);
+    for (const m of nodes) {
+      const parent = m.parentNode;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+      parent.normalize?.();
+    }
+  }
+
+  function recolorMarksForId(id, color) {
+    if (!articleEl) return;
+    const nodes = articleEl.querySelectorAll(`mark[${HIGHLIGHT_ID_ATTR}="${CSS.escape(id)}"]`);
+    for (const m of nodes) m.setAttribute(HIGHLIGHT_COLOR_ATTR, color);
+  }
+
+  async function loadHighlights() {
+    try {
+      const got = await chrome.storage?.local?.get?.(HIGHLIGHT_STORAGE_KEY);
+      const map = got?.[HIGHLIGHT_STORAGE_KEY];
+      const list = map && typeof map === "object" ? map[canonicalUrlKey()] : null;
+      highlights = Array.isArray(list) ? list.filter((h) => h && h.id && h.text) : [];
+    } catch {
+      highlights = [];
+    }
+    highlightById = new Map(highlights.map((h) => [h.id, h]));
+  }
+
+  async function persistHighlights() {
+    try {
+      const got = await chrome.storage?.local?.get?.(HIGHLIGHT_STORAGE_KEY);
+      const map = (got && got[HIGHLIGHT_STORAGE_KEY]) || {};
+      const key = canonicalUrlKey();
+      if (!highlights.length) delete map[key];
+      else map[key] = highlights;
+      await chrome.storage?.local?.set?.({ [HIGHLIGHT_STORAGE_KEY]: map });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function restoreHighlights() {
+    if (!state.enabled || !articleEl || !highlights.length) return;
+    clearAllHighlightMarks();
+    // Sort by start offset descending so wrapping earlier entries doesn't
+    // shift later offsets in the live tree.
+    const sorted = highlights.slice().sort((a, b) => (b.start || 0) - (a.start || 0));
+    for (const entry of sorted) {
+      let start = typeof entry.start === "number" ? entry.start : -1;
+      let end = typeof entry.end === "number" ? entry.end : -1;
+      const expected = entry.text || "";
+      // Sanity: does the article text at [start, end) still match?
+      const article = articleEl.textContent || "";
+      if (start < 0 || end <= start || article.slice(start, end) !== expected) {
+        const idx = findOffsetByContext(entry);
+        if (idx < 0) continue;
+        start = idx;
+        end = idx + expected.length;
+      }
+      const a = pointFromOffset(start);
+      const b = pointFromOffset(end);
+      if (!a || !b) continue;
+      const range = document.createRange();
+      try {
+        range.setStart(a.node, a.offset);
+        range.setEnd(b.node, b.offset);
+      } catch { continue; }
+      wrapRangeWithMark(range, clampHighlightColor(entry.color), entry.id);
+    }
+  }
+
+  function scheduleHighlightRestore() {
+    clearTimeout(highlightRestoreTimer);
+    highlightRestoreTimer = setTimeout(() => {
+      if (state.enabled) restoreHighlights();
+    }, 120);
+  }
+
+  function getArticleSelectionRange() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+    const range = sel.getRangeAt(0);
+    if (!articleEl || !range) return null;
+    if (!articleEl.contains(range.startContainer) || !articleEl.contains(range.endContainer)) return null;
+    // Reject selections that are only whitespace.
+    if (!range.toString().trim()) return null;
+    return range;
+  }
+
+  function ensurePalette() {
+    const root = ensureRoot();
+    const shadow = root.shadowRoot;
+    let pal = shadow.querySelector(".hl-palette");
+    if (pal) { highlightPaletteEl = pal; return pal; }
+    pal = document.createElement("div");
+    pal.className = "hl-palette";
+    pal.setAttribute("role", "toolbar");
+    pal.setAttribute("aria-label", "Highlight color");
+    const swatches = HIGHLIGHT_COLORS.map((c) => `
+      <button type="button" class="hl-swatch" data-hl-color="${c.id}"
+        style="--swatch:${c.fill};" aria-label="${c.label}" title="${c.label}">
+        <span class="hl-swatch-dot" aria-hidden="true"></span>
+      </button>`).join("");
+    pal.innerHTML = `
+      ${swatches}
+      <span class="hl-divider" aria-hidden="true"></span>
+      <button type="button" class="hl-remove" data-hl-remove="1" aria-label="Remove highlight" title="Remove">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 7h14" />
+          <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+          <path d="M7 7l1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12" />
+        </svg>
+      </button>
+    `;
+    pal.addEventListener("mousedown", (e) => { e.preventDefault(); }, true);
+    pal.addEventListener("click", onPaletteClick);
+    shadow.appendChild(pal);
+    highlightPaletteEl = pal;
+    return pal;
+  }
+
+  function showPaletteAt(rect, opts = {}) {
+    if (!rect) return;
+    const pal = ensurePalette();
+    pal.setAttribute("data-mode", opts.targetId ? "edit" : "create");
+    highlightTargetId = opts.targetId || null;
+    // Position palette above selection, clamped to viewport.
+    const padding = 10;
+    const palW = 196;
+    const palH = 40;
+    let left = rect.left + rect.width / 2 - palW / 2;
+    let top = rect.top - palH - padding;
+    if (top < 8) top = rect.bottom + padding;
+    left = Math.max(8, Math.min((window.innerWidth || 1200) - palW - 8, left));
+    pal.style.left = `${Math.round(left)}px`;
+    pal.style.top = `${Math.round(top)}px`;
+    pal.setAttribute("data-visible", "1");
+    clearTimeout(highlightPaletteHideTimer);
+  }
+
+  function hidePalette() {
+    if (!highlightPaletteEl) return;
+    highlightPaletteEl.removeAttribute("data-visible");
+    highlightTargetId = null;
+    highlightSelectionRange = null;
+  }
+
+  function onPaletteClick(e) {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (btn.dataset.hlRemove) {
+      if (highlightTargetId) removeHighlightById(highlightTargetId);
+      hidePalette();
+      return;
+    }
+    const color = clampHighlightColor(btn.dataset.hlColor);
+    if (highlightTargetId) {
+      recolorHighlight(highlightTargetId, color);
+    } else if (highlightSelectionRange) {
+      applyHighlightToRange(highlightSelectionRange, color);
+    }
+    hidePalette();
+    try { window.getSelection()?.removeAllRanges(); } catch {}
+  }
+
+  function recolorHighlight(id, color) {
+    const entry = highlightById.get(id);
+    if (!entry) return;
+    entry.color = color;
+    entry.updatedAt = Date.now();
+    recolorMarksForId(id, color);
+    persistHighlights();
+  }
+
+  function removeHighlightById(id) {
+    if (!highlightById.has(id)) return;
+    highlights = highlights.filter((h) => h.id !== id);
+    highlightById.delete(id);
+    unwrapMarksForId(id);
+    persistHighlights();
+    flashTypography("Highlight removed");
+  }
+
+  function applyHighlightToRange(range, color) {
+    if (!state.enabled || !articleEl) return;
+    if (!range || range.collapsed) return;
+    if (!articleEl.contains(range.startContainer) || !articleEl.contains(range.endContainer)) return;
+    const text = range.toString();
+    if (!text.trim()) return;
+    const start = articleTextOffset(range.startContainer, range.startOffset);
+    const end = articleTextOffset(range.endContainer, range.endOffset);
+    if (start < 0 || end <= start) return;
+    const full = articleEl.textContent || "";
+    const before = full.slice(Math.max(0, start - 48), start);
+    const after = full.slice(end, Math.min(full.length, end + 48));
+    const id = newHighlightId();
+    const ok = wrapRangeWithMark(range, color, id);
+    if (!ok) return;
+    const entry = {
+      id, color: clampHighlightColor(color),
+      text, start, end, before, after,
+      createdAt: Date.now(),
+    };
+    highlights.push(entry);
+    highlightById.set(id, entry);
+    persistHighlights();
+    flashTypography("Highlighted");
+  }
+
+  function applyHighlightToCurrentSelection(color) {
+    const range = highlightSelectionRange || getArticleSelectionRange();
+    if (!range) {
+      flashTypography("Select text first");
+      return;
+    }
+    applyHighlightToRange(range, color);
+    hidePalette();
+    try { window.getSelection()?.removeAllRanges(); } catch {}
+  }
+
+  function onSelectionChange() {
+    if (!state.enabled) return;
+    if (highlightTargetId) return; // edit-mode palette open over a mark
+    const range = getArticleSelectionRange();
+    if (!range) {
+      // Defer hiding so palette clicks register first.
+      clearTimeout(highlightPaletteHideTimer);
+      highlightPaletteHideTimer = setTimeout(() => {
+        if (!getArticleSelectionRange()) hidePalette();
+      }, 100);
+      return;
+    }
+    highlightSelectionRange = range;
+    const rect = range.getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) return;
+    showPaletteAt(rect);
+  }
+
+  function onArticleClick(e) {
+    if (!state.enabled) return;
+    const m = e.target.closest?.(`mark[${HIGHLIGHT_ATTR}="1"]`);
+    if (!m) return;
+    const id = m.getAttribute(HIGHLIGHT_ID_ATTR);
+    if (!id || !highlightById.has(id)) return;
+    e.stopPropagation();
+    const rect = m.getBoundingClientRect();
+    showPaletteAt(rect, { targetId: id });
   }
 
   // ---- Bookmarks ---------------------------------------------------------
@@ -1248,6 +1730,39 @@
         toggleBookmarkCurrentSection();
         return;
       }
+      // 1-4 apply highlight color to current selection; 0 removes the
+      // hovered/last-touched mark when a palette is open over one.
+      if ((e.key === "1" || e.code === "Digit1") && getArticleSelectionRange()) {
+        e.preventDefault(); e.stopPropagation();
+        applyHighlightToCurrentSelection(HIGHLIGHT_COLORS[0].id);
+        return;
+      }
+      if ((e.key === "2" || e.code === "Digit2") && getArticleSelectionRange()) {
+        e.preventDefault(); e.stopPropagation();
+        applyHighlightToCurrentSelection(HIGHLIGHT_COLORS[1].id);
+        return;
+      }
+      if ((e.key === "3" || e.code === "Digit3") && getArticleSelectionRange()) {
+        e.preventDefault(); e.stopPropagation();
+        applyHighlightToCurrentSelection(HIGHLIGHT_COLORS[2].id);
+        return;
+      }
+      if ((e.key === "4" || e.code === "Digit4") && getArticleSelectionRange()) {
+        e.preventDefault(); e.stopPropagation();
+        applyHighlightToCurrentSelection(HIGHLIGHT_COLORS[3].id);
+        return;
+      }
+      if ((e.key === "0" || e.code === "Digit0") && highlightTargetId) {
+        e.preventDefault(); e.stopPropagation();
+        removeHighlightById(highlightTargetId);
+        hidePalette();
+        return;
+      }
+      // Escape closes the palette.
+      if (e.key === "Escape" && highlightPaletteEl?.getAttribute("data-visible") === "1") {
+        hidePalette();
+        return;
+      }
     }
     // Shift + = (i.e. "+") also bumps font size, since plus reads better.
     if (state.enabled && e.shiftKey && (e.key === "+" || (e.code === "Equal" && e.shiftKey))) {
@@ -1258,6 +1773,8 @@
     }
   }
   window.addEventListener("keydown", onKeyDown, true);
+  document.addEventListener("selectionchange", onSelectionChange, true);
+  document.addEventListener("click", onArticleClick, true);
 
   // ---- Message bridge ------------------------------------------------------
   chrome.runtime?.onMessage?.addListener?.((msg, _sender, sendResponse) => {
@@ -1338,6 +1855,28 @@
           bookmarked: bookmarkIds.has(pickCurrentSectionId() || ""),
         });
         return true;
+      case "doc-reader/list-highlights":
+        sendResponse({
+          url: canonicalUrlKey(),
+          colors: HIGHLIGHT_COLORS.map((c) => ({ id: c.id, label: c.label, fill: c.fill })),
+          entries: highlights.slice(),
+        });
+        return true;
+      case "doc-reader/highlight-selection":
+        applyHighlightToCurrentSelection(clampHighlightColor(msg.color));
+        sendResponse({ ok: true, count: highlights.length });
+        return true;
+      case "doc-reader/remove-highlight":
+        if (msg.id) removeHighlightById(String(msg.id));
+        sendResponse({ ok: true, count: highlights.length });
+        return true;
+      case "doc-reader/clear-highlights":
+        highlights = [];
+        highlightById = new Map();
+        clearAllHighlightMarks();
+        persistHighlights();
+        sendResponse({ ok: true });
+        return true;
       case "doc-reader/toc":
         sendResponse({
           entries: tocEntries.map((e) => ({ id: e.id, text: e.text, level: e.level })),
@@ -1359,6 +1898,7 @@
     applyWidth();
     applyTypography();
     await loadBookmarks();
+    await loadHighlights();
     const wasEnabled = await loadEnabled();
     if (wasEnabled) setEnabled(true, { flash: false });
   }
