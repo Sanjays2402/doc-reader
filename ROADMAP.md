@@ -9,7 +9,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Single-column layout with adjustable max-width
 - [x] Persistent TOC sidebar from h2/h3
 - [x] Reading progress indicator
-- [ ] Font size + line-height controls
+- [x] Font size + line-height controls
 - [ ] Serif/sans/mono toggle
 - [ ] Bookmark current section
 - [ ] Bookmarks list popup with search

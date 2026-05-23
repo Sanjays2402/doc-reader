@@ -44,6 +44,8 @@ html.doc-reader-active [data-doc-reader-hide="1"] {
    keyboard ([ and ]) or messages without re-rendering. */
 html.doc-reader-active {
   --doc-reader-max-width: 720px;
+  --doc-reader-font-size: 16.5px;
+  --doc-reader-line-height: 1.7;
 }
 
 /* Relax layout constraints on ancestors of the article so the
@@ -76,15 +78,26 @@ html.doc-reader-active [data-doc-reader-article="1"] {
   margin-left: auto !important;
   margin-right: auto !important;
   padding: 32px 24px 96px !important;
-  font-size: 16.5px;
-  line-height: 1.7;
+  font-size: var(--doc-reader-font-size, 16.5px) !important;
+  line-height: var(--doc-reader-line-height, 1.7) !important;
   letter-spacing: -0.005em;
-  transition: max-width 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    max-width 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    font-size 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    line-height 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html.doc-reader-active [data-doc-reader-article="1"] > * {
   max-width: 100% !important;
   width: auto !important;
+}
+html.doc-reader-active [data-doc-reader-article="1"] p,
+html.doc-reader-active [data-doc-reader-article="1"] li,
+html.doc-reader-active [data-doc-reader-article="1"] blockquote,
+html.doc-reader-active [data-doc-reader-article="1"] dd,
+html.doc-reader-active [data-doc-reader-article="1"] dt {
+  font-size: inherit !important;
+  line-height: inherit !important;
 }
 html.doc-reader-active [data-doc-reader-article="1"] pre,
 html.doc-reader-active [data-doc-reader-article="1"] img,

@@ -13,10 +13,20 @@
 
   const STORAGE_KEY = `${NS}:enabled`;
   const WIDTH_STORAGE_KEY = `${NS}:width`;
+  const FONT_STORAGE_KEY = `${NS}:font-size`;
+  const LH_STORAGE_KEY = `${NS}:line-height`;
   const WIDTH_MIN = 560;
   const WIDTH_MAX = 1080;
   const WIDTH_DEFAULT = 720;
   const WIDTH_STEP = 40;
+  const FONT_MIN = 13;
+  const FONT_MAX = 22;
+  const FONT_DEFAULT = 16.5;
+  const FONT_STEP = 0.5;
+  const LH_MIN = 1.3;
+  const LH_MAX = 2.0;
+  const LH_DEFAULT = 1.7;
+  const LH_STEP = 0.05;
   const ARTICLE_ATTR = "data-doc-reader-article";
   const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
   const HEADING_ATTR = "data-doc-reader-heading";
@@ -41,12 +51,29 @@
     site: site ? { id: site.id, label: site.label, accent: site.accent } : null,
     supported: !!site,
     width: WIDTH_DEFAULT,
+    fontSize: FONT_DEFAULT,
+    lineHeight: LH_DEFAULT,
   };
 
   function clampWidth(n) {
     n = Math.round(Number(n) || WIDTH_DEFAULT);
     if (!Number.isFinite(n)) n = WIDTH_DEFAULT;
     return Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, n));
+  }
+
+  function clampFontSize(n) {
+    n = Number(n);
+    if (!Number.isFinite(n)) n = FONT_DEFAULT;
+    // Snap to 0.1 to keep storage tidy.
+    n = Math.round(n * 10) / 10;
+    return Math.min(FONT_MAX, Math.max(FONT_MIN, n));
+  }
+
+  function clampLineHeight(n) {
+    n = Number(n);
+    if (!Number.isFinite(n)) n = LH_DEFAULT;
+    n = Math.round(n * 100) / 100;
+    return Math.min(LH_MAX, Math.max(LH_MIN, n));
   }
 
   if (site) {
@@ -360,6 +387,7 @@
     if (state.enabled) {
       document.documentElement.classList.add(ACTIVE_CLASS);
       applyWidth();
+      applyTypography();
       root.removeAttribute("hidden");
       stripNoise();
       applySingleColumn();
@@ -383,6 +411,13 @@
       "--doc-reader-max-width",
       `${state.width}px`,
     );
+  }
+
+  // ---- Typography (font size + line-height) -------------------------------
+  function applyTypography() {
+    const root = document.documentElement;
+    root.style.setProperty("--doc-reader-font-size", `${state.fontSize}px`);
+    root.style.setProperty("--doc-reader-line-height", String(state.lineHeight));
   }
 
   function applySingleColumn() {
@@ -433,12 +468,46 @@
     return v;
   }
 
+  async function setFontSize(next, opts = {}) {
+    const v = clampFontSize(next);
+    state.fontSize = v;
+    if (state.enabled) {
+      applyTypography();
+      flashTypography(`${v}px`);
+    }
+    if (opts.persist !== false) persistFontSize(v);
+    return v;
+  }
+
+  async function setLineHeight(next, opts = {}) {
+    const v = clampLineHeight(next);
+    state.lineHeight = v;
+    if (state.enabled) {
+      applyTypography();
+      flashTypography(`line ${v.toFixed(2)}`);
+    }
+    if (opts.persist !== false) persistLineHeight(v);
+    return v;
+  }
+
   function flashWidth() {
     const root = document.querySelector(`[${ROOT_ATTR}]`);
     const pill = root?.shadowRoot?.querySelector(".pill");
     if (!pill) return;
     const label = pill.querySelector(".label");
     if (label) label.textContent = `${state.width}px`;
+    pill.setAttribute("data-state", state.enabled ? "on" : "off");
+    pill.setAttribute("data-visible", "1");
+    clearTimeout(pillHideTimer);
+    pillHideTimer = setTimeout(() => pill.removeAttribute("data-visible"), 1100);
+  }
+
+  function flashTypography(text) {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const pill = root?.shadowRoot?.querySelector(".pill");
+    if (!pill) return;
+    const label = pill.querySelector(".label");
+    if (label) label.textContent = text;
     pill.setAttribute("data-state", state.enabled ? "on" : "off");
     pill.setAttribute("data-visible", "1");
     clearTimeout(pillHideTimer);
@@ -844,6 +913,46 @@
     }
   }
 
+  async function loadFontSize() {
+    try {
+      const got = await chrome.storage?.local?.get?.(FONT_STORAGE_KEY);
+      const map = got?.[FONT_STORAGE_KEY];
+      if (map && typeof map === "object" && map[state.host]) {
+        return clampFontSize(map[state.host]);
+      }
+    } catch { /* storage unavailable */ }
+    return FONT_DEFAULT;
+  }
+
+  async function persistFontSize(value) {
+    try {
+      const got = await chrome.storage?.local?.get?.(FONT_STORAGE_KEY);
+      const map = (got && got[FONT_STORAGE_KEY]) || {};
+      map[state.host] = clampFontSize(value);
+      await chrome.storage?.local?.set?.({ [FONT_STORAGE_KEY]: map });
+    } catch { /* ignore */ }
+  }
+
+  async function loadLineHeight() {
+    try {
+      const got = await chrome.storage?.local?.get?.(LH_STORAGE_KEY);
+      const map = got?.[LH_STORAGE_KEY];
+      if (map && typeof map === "object" && map[state.host]) {
+        return clampLineHeight(map[state.host]);
+      }
+    } catch { /* storage unavailable */ }
+    return LH_DEFAULT;
+  }
+
+  async function persistLineHeight(value) {
+    try {
+      const got = await chrome.storage?.local?.get?.(LH_STORAGE_KEY);
+      const map = (got && got[LH_STORAGE_KEY]) || {};
+      map[state.host] = clampLineHeight(value);
+      await chrome.storage?.local?.set?.({ [LH_STORAGE_KEY]: map });
+    } catch { /* ignore */ }
+  }
+
   // ---- Keyboard shortcut: Shift+R -----------------------------------------
   function isTypingTarget(el) {
     if (!el) return false;
@@ -880,6 +989,39 @@
         setWidth(state.width + WIDTH_STEP);
         return;
       }
+      // - / = adjust font size. Accept the shifted "+" too.
+      if (e.key === "-" || e.code === "Minus") {
+        e.preventDefault();
+        e.stopPropagation();
+        setFontSize(state.fontSize - FONT_STEP);
+        return;
+      }
+      if (e.key === "=" || e.code === "Equal") {
+        e.preventDefault();
+        e.stopPropagation();
+        setFontSize(state.fontSize + FONT_STEP);
+        return;
+      }
+      // , / . adjust line-height.
+      if (e.key === "," || e.code === "Comma") {
+        e.preventDefault();
+        e.stopPropagation();
+        setLineHeight(state.lineHeight - LH_STEP);
+        return;
+      }
+      if (e.key === "." || e.code === "Period") {
+        e.preventDefault();
+        e.stopPropagation();
+        setLineHeight(state.lineHeight + LH_STEP);
+        return;
+      }
+    }
+    // Shift + = (i.e. "+") also bumps font size, since plus reads better.
+    if (state.enabled && e.shiftKey && (e.key === "+" || (e.code === "Equal" && e.shiftKey))) {
+      e.preventDefault();
+      e.stopPropagation();
+      setFontSize(state.fontSize + FONT_STEP);
+      return;
     }
   }
   window.addEventListener("keydown", onKeyDown, true);
@@ -912,6 +1054,24 @@
       case "doc-reader/set-width":
         setWidth(msg.width).then((w) => sendResponse({ width: w }));
         return true;
+      case "doc-reader/get-typography":
+        sendResponse({
+          fontSize: state.fontSize,
+          lineHeight: state.lineHeight,
+          fontMin: FONT_MIN, fontMax: FONT_MAX, fontStep: FONT_STEP, fontDefault: FONT_DEFAULT,
+          lineMin: LH_MIN, lineMax: LH_MAX, lineStep: LH_STEP, lineDefault: LH_DEFAULT,
+        });
+        return true;
+      case "doc-reader/set-font-size":
+        setFontSize(msg.fontSize).then((v) => sendResponse({ fontSize: v }));
+        return true;
+      case "doc-reader/set-line-height":
+        setLineHeight(msg.lineHeight).then((v) => sendResponse({ lineHeight: v }));
+        return true;
+      case "doc-reader/reset-typography":
+        Promise.all([setFontSize(FONT_DEFAULT), setLineHeight(LH_DEFAULT)])
+          .then(([f, l]) => sendResponse({ fontSize: f, lineHeight: l }));
+        return true;
       case "doc-reader/progress":
         sendResponse({
           enabled: state.enabled,
@@ -933,7 +1093,10 @@
   ensureRoot();
   if (state.supported) {
     state.width = await loadWidth();
+    state.fontSize = await loadFontSize();
+    state.lineHeight = await loadLineHeight();
     applyWidth();
+    applyTypography();
     const wasEnabled = await loadEnabled();
     if (wasEnabled) setEnabled(true, { flash: false });
   }
