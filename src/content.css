@@ -491,6 +491,42 @@ html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-color="pi
 html.doc-reader-active mark[data-doc-reader-hl="1"]:hover {
   filter: brightness(1.05);
 }
+/* Note indicator: a tiny pip glued to the trailing edge of the last mark
+   in a highlight run when the entry carries a saved note. */
+html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-note="1"] {
+  position: relative;
+}
+html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-note="1"]::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 3px;
+  vertical-align: super;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.62;
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-note="1"][data-doc-reader-hl-color="yellow"]::after {
+  background: rgba(190, 130, 20, 0.95);
+  opacity: 1;
+}
+html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-note="1"][data-doc-reader-hl-color="mint"]::after {
+  background: rgba(40, 150, 100, 0.95);
+  opacity: 1;
+}
+html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-note="1"][data-doc-reader-hl-color="sky"]::after {
+  background: rgba(60, 120, 220, 0.95);
+  opacity: 1;
+}
+html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-note="1"][data-doc-reader-hl-color="pink"]::after {
+  background: rgba(220, 80, 130, 0.95);
+  opacity: 1;
+}
+html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-note="1"]:hover::after {
+  transform: scale(1.15);
+}
 
 /* ---- Search-in-page match marks ---------------------------------------
    Wrapped around literal substring matches inside the article while the

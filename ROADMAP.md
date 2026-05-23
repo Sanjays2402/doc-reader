@@ -27,7 +27,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Search-in-page overlay with match navigation
 - [x] Per-site enable/disable settings panel
 - [x] Recently read history (last 20 docs)
-- [ ] Annotations: add inline notes to highlights
+- [x] Annotations: add inline notes to highlights
 - [ ] Export highlights + notes to Markdown
 - [ ] Sync settings across browsers via chrome.storage.sync
 - [ ] Per-article reading position resume

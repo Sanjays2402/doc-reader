@@ -28,6 +28,7 @@
   const HIGHLIGHT_ATTR = "data-doc-reader-hl";
   const HIGHLIGHT_ID_ATTR = "data-doc-reader-hl-id";
   const HIGHLIGHT_COLOR_ATTR = "data-doc-reader-hl-color";
+  const HIGHLIGHT_NOTE_ATTR = "data-doc-reader-hl-note";
   const HIGHLIGHT_COLORS = [
     { id: "yellow", label: "Yellow", fill: "#ffd86b", ink: "#3a2e00" },
     { id: "mint",   label: "Mint",   fill: "#9be7c0", ink: "#0a3a25" },
@@ -581,6 +582,159 @@
       }
       .hl-remove:hover svg { stroke: #ff9a9a; }
       .hl-remove:hover { background: rgba(255,154,154,0.10); }
+      .hl-note-btn svg {
+        width: 14px;
+        height: 14px;
+        stroke: rgba(245,245,247,0.72);
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .hl-note-btn:hover svg { stroke: ${accent}; }
+      .hl-note-btn:hover { background: rgba(255,255,255,0.08); }
+      .hl-note-btn[data-has-note="1"] svg { stroke: ${accent}; }
+      .hl-note-btn[data-has-note="1"]::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 5px;
+        height: 5px;
+        border-radius: 999px;
+        background: ${accent};
+        box-shadow: 0 0 0 1.5px rgba(20,20,24,0.85);
+      }
+      .hl-note-btn { position: relative; }
+
+      .hl-note-editor {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 280px;
+        pointer-events: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        background: linear-gradient(180deg, rgba(22,22,28,0.78), rgba(14,14,18,0.72));
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 14px;
+        box-shadow:
+          0 16px 40px rgba(0,0,0,0.46),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(22px) saturate(150%);
+        -webkit-backdrop-filter: blur(22px) saturate(150%);
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro", sans-serif;
+        color: rgba(245,245,247,0.94);
+        opacity: 0;
+        transform: translateY(-4px) scale(0.98);
+        transition:
+          opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 2147483647;
+      }
+      .hl-note-editor[data-visible="1"] {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      .hl-note-editor::before {
+        content: "";
+        position: absolute;
+        inset: auto -20% -40% auto;
+        width: 160px;
+        height: 160px;
+        background: radial-gradient(closest-side, ${accent}30, transparent 70%);
+        filter: blur(28px);
+        pointer-events: none;
+        border-radius: inherit;
+      }
+      .hl-note-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(245,245,247,0.62);
+        position: relative;
+      }
+      .hl-note-head svg { width: 12px; height: 12px; stroke: ${accent}; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .hl-note-quote {
+        position: relative;
+        font-size: 11px;
+        line-height: 1.45;
+        color: rgba(245,245,247,0.72);
+        padding: 6px 8px 6px 10px;
+        border-left: 2px solid ${accent}aa;
+        background: rgba(255,255,255,0.04);
+        border-radius: 4px;
+        max-height: 48px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+      .hl-note-textarea {
+        all: unset;
+        position: relative;
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 72px;
+        max-height: 200px;
+        padding: 8px 10px;
+        font-family: inherit;
+        font-size: 12.5px;
+        line-height: 1.45;
+        letter-spacing: -0.01em;
+        color: rgba(245,245,247,0.96);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 8px;
+        resize: vertical;
+        transition:
+          border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .hl-note-textarea::placeholder { color: rgba(245,245,247,0.38); }
+      .hl-note-textarea:focus { border-color: ${accent}aa; box-shadow: 0 0 0 2px ${accent}55; }
+      .hl-note-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        position: relative;
+      }
+      .hl-note-btn-action {
+        all: unset;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        padding: 6px 12px;
+        border-radius: 8px;
+        color: rgba(245,245,247,0.78);
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+        transition:
+          background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .hl-note-btn-action:hover { background: rgba(255,255,255,0.10); color: rgba(245,245,247,0.96); }
+      .hl-note-btn-action:focus-visible { box-shadow: 0 0 0 2px ${accent}99; }
+      .hl-note-btn-action[data-variant="primary"] {
+        background: ${accent};
+        border-color: transparent;
+        color: #0c0c10;
+        font-weight: 600;
+      }
+      .hl-note-btn-action[data-variant="primary"]:hover { transform: translateY(-1px); filter: brightness(1.06); }
+      .hl-note-btn-action[data-variant="danger"]:hover { color: #ff9a9a; background: rgba(255,154,154,0.10); }
 
       /* ---- Liquid-glass control panel ------------------------------ */
       .pill .gear {
@@ -2484,6 +2638,24 @@
     for (const m of nodes) m.setAttribute(HIGHLIGHT_COLOR_ATTR, color);
   }
 
+  function refreshNoteMarksForId(id) {
+    if (!articleEl) return;
+    const entry = highlightById.get(id);
+    const has = !!(entry && entry.note);
+    const nodes = articleEl.querySelectorAll(`mark[${HIGHLIGHT_ID_ATTR}="${CSS.escape(id)}"]`);
+    // Only the last mark gets the note pip so multi-line highlights show
+    // a single indicator at the end of the run.
+    nodes.forEach((m, i) => {
+      if (has && i === nodes.length - 1) m.setAttribute(HIGHLIGHT_NOTE_ATTR, "1");
+      else m.removeAttribute(HIGHLIGHT_NOTE_ATTR);
+    });
+  }
+
+  function refreshAllNoteMarks() {
+    if (!articleEl) return;
+    for (const h of highlights) refreshNoteMarksForId(h.id);
+  }
+
   async function loadHighlights() {
     try {
       const got = await chrome.storage?.local?.get?.(HIGHLIGHT_STORAGE_KEY);
@@ -2507,6 +2679,136 @@
     } catch {
       /* ignore */
     }
+  }
+
+  // ---- Note editor (annotations on highlights) --------------------------
+  // Stores per-highlight free-form text in `entry.note`. The editor renders
+  // a small liquid-glass panel near the target highlight; Save/Delete
+  // persists through the normal highlights store.
+  let highlightNoteEditorEl = null;
+  let highlightNoteEditorId = null;
+
+  function ensureNoteEditor() {
+    const root = ensureRoot();
+    const shadow = root.shadowRoot;
+    let el = shadow.querySelector(".hl-note-editor");
+    if (el) { highlightNoteEditorEl = el; return el; }
+    el = document.createElement("div");
+    el.className = "hl-note-editor";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", "Highlight note");
+    el.innerHTML = `
+      <div class="hl-note-head">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+          <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L13 14l-4 1 1-4 8.5-8.5z" />
+        </svg>
+        <span class="hl-note-title">Note</span>
+      </div>
+      <div class="hl-note-quote" data-quote></div>
+      <textarea class="hl-note-textarea" data-note-input rows="4"
+        placeholder="Add a note for this highlight…"></textarea>
+      <div class="hl-note-actions">
+        <button type="button" class="hl-note-btn-action" data-variant="danger" data-note-action="delete">Delete</button>
+        <button type="button" class="hl-note-btn-action" data-note-action="cancel">Cancel</button>
+        <button type="button" class="hl-note-btn-action" data-variant="primary" data-note-action="save">Save</button>
+      </div>
+    `;
+    el.addEventListener("mousedown", (e) => e.stopPropagation(), true);
+    el.addEventListener("click", onNoteEditorClick);
+    const ta = el.querySelector("[data-note-input]");
+    ta?.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); closeNoteEditor(); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); saveNote(); }
+    });
+    shadow.appendChild(el);
+    highlightNoteEditorEl = el;
+    return el;
+  }
+
+  function openNoteEditor(id) {
+    if (!id) return;
+    const entry = highlightById.get(id);
+    if (!entry) return;
+    hidePalette();
+    const el = ensureNoteEditor();
+    highlightNoteEditorId = id;
+    const quote = el.querySelector("[data-quote]");
+    const ta = el.querySelector("[data-note-input]");
+    if (quote) quote.textContent = entry.text || "";
+    if (ta) ta.value = typeof entry.note === "string" ? entry.note : "";
+
+    // Position relative to the first mark for this highlight.
+    let rect = null;
+    const first = articleEl?.querySelector(`mark[${HIGHLIGHT_ID_ATTR}="${CSS.escape(id)}"]`);
+    if (first) rect = first.getBoundingClientRect();
+    const padding = 10;
+    const w = 304;
+    const h = el.offsetHeight || 220;
+    let left = (rect ? rect.left : 16);
+    let top = rect ? rect.bottom + padding : 80;
+    const vw = window.innerWidth || 1200;
+    const vh = window.innerHeight || 800;
+    left = Math.max(8, Math.min(vw - w - 8, left));
+    if (rect && top + h > vh - 8) top = Math.max(8, rect.top - h - padding);
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(top)}px`;
+    el.setAttribute("data-visible", "1");
+    // Defer focus until transition begins so caret lands cleanly.
+    setTimeout(() => { try { ta?.focus(); ta?.select?.(); } catch {} }, 30);
+  }
+
+  function closeNoteEditor() {
+    if (!highlightNoteEditorEl) return;
+    highlightNoteEditorEl.removeAttribute("data-visible");
+    highlightNoteEditorId = null;
+  }
+
+  function onNoteEditorClick(e) {
+    const btn = e.target.closest("button[data-note-action]");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const action = btn.dataset.noteAction;
+    if (action === "save") saveNote();
+    else if (action === "delete") deleteNote();
+    else closeNoteEditor();
+  }
+
+  function saveNote() {
+    const id = highlightNoteEditorId;
+    if (!id) { closeNoteEditor(); return; }
+    const entry = highlightById.get(id);
+    if (!entry) { closeNoteEditor(); return; }
+    const ta = highlightNoteEditorEl?.querySelector("[data-note-input]");
+    const value = (ta?.value || "").trim();
+    if (value) {
+      entry.note = value;
+      entry.noteUpdatedAt = Date.now();
+      flashTypography("Note saved");
+    } else {
+      delete entry.note;
+      delete entry.noteUpdatedAt;
+      flashTypography("Note cleared");
+    }
+    refreshNoteMarksForId(id);
+    persistHighlights();
+    closeNoteEditor();
+  }
+
+  function deleteNote() {
+    const id = highlightNoteEditorId;
+    if (!id) { closeNoteEditor(); return; }
+    const entry = highlightById.get(id);
+    if (!entry) { closeNoteEditor(); return; }
+    if (entry.note) {
+      delete entry.note;
+      delete entry.noteUpdatedAt;
+      refreshNoteMarksForId(id);
+      persistHighlights();
+      flashTypography("Note deleted");
+    }
+    closeNoteEditor();
   }
 
   function restoreHighlights() {
@@ -2537,6 +2839,7 @@
       } catch { continue; }
       wrapRangeWithMark(range, clampHighlightColor(entry.color), entry.id);
     }
+    refreshAllNoteMarks();
   }
 
   function scheduleHighlightRestore() {
@@ -2574,6 +2877,12 @@
     pal.innerHTML = `
       ${swatches}
       <span class="hl-divider" aria-hidden="true"></span>
+      <button type="button" class="hl-note-btn" data-hl-note="1" aria-label="Add note" title="Add note">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+          <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L13 14l-4 1 1-4 8.5-8.5z" />
+        </svg>
+      </button>
       <button type="button" class="hl-remove" data-hl-remove="1" aria-label="Remove highlight" title="Remove">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 7h14" />
@@ -2594,9 +2903,17 @@
     const pal = ensurePalette();
     pal.setAttribute("data-mode", opts.targetId ? "edit" : "create");
     highlightTargetId = opts.targetId || null;
+    // Reflect whether the target highlight already has a note so the
+    // note button can render its accent state.
+    const noteBtn = pal.querySelector(".hl-note-btn");
+    if (noteBtn) {
+      const hasNote = !!(highlightTargetId && highlightById.get(highlightTargetId)?.note);
+      if (hasNote) noteBtn.setAttribute("data-has-note", "1");
+      else noteBtn.removeAttribute("data-has-note");
+    }
     // Position palette above selection, clamped to viewport.
     const padding = 10;
-    const palW = 196;
+    const palW = 232;
     const palH = 40;
     let left = rect.left + rect.width / 2 - palW / 2;
     let top = rect.top - palH - padding;
@@ -2623,6 +2940,21 @@
     if (btn.dataset.hlRemove) {
       if (highlightTargetId) removeHighlightById(highlightTargetId);
       hidePalette();
+      return;
+    }
+    if (btn.dataset.hlNote) {
+      // If we're in create mode, materialize a highlight first with the
+      // default color so the note can attach to a stable id.
+      let id = highlightTargetId;
+      if (!id && highlightSelectionRange) {
+        const range = highlightSelectionRange;
+        const before = highlights.length;
+        applyHighlightToRange(range, clampHighlightColor());
+        if (highlights.length > before) id = highlights[highlights.length - 1].id;
+        try { window.getSelection()?.removeAllRanges(); } catch {}
+      }
+      if (!id) { hidePalette(); return; }
+      openNoteEditor(id);
       return;
     }
     const color = clampHighlightColor(btn.dataset.hlColor);
