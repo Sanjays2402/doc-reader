@@ -16,8 +16,14 @@
   display: none !important;
 }
 
-/* When the reader is active, the host body gets this class so
-   future features can fade the underlying page. */
-html.doc-reader-active body {
-  overflow: hidden;
+/* When the reader is active, the <html> element gets this class so
+   future features can transform the underlying page. For now we
+   leave the page interactive and just expose a hook for upcoming
+   strip/TOC features. */
+html.doc-reader-active [data-doc-reader-root] {
+  pointer-events: none;
+}
+html.doc-reader-active [data-doc-reader-root] .pill,
+html.doc-reader-active [data-doc-reader-root] [data-interactive] {
+  pointer-events: auto;
 }

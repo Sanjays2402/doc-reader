@@ -41,4 +41,21 @@ for (const bad of ["https://example.com/", "https://vercel.com/pricing", "not a 
 }
 if (SITES.length < 5) { console.error("SITES registry too small"); process.exit(1); }
 
+// Reader toggle: content script must register the Shift+R shortcut and
+// expose a toggle entry point. We grep for stable tokens rather than
+// loading the script (it depends on chrome.* globals).
+const contentSrc = fs.readFileSync("src/content.js", "utf8");
+for (const needle of [
+  "KeyR",
+  "shiftKey",
+  "doc-reader/toggle",
+  "__docReaderToggle",
+  "doc-reader-active",
+]) {
+  if (!contentSrc.includes(needle)) {
+    console.error("content.js missing reader-toggle token:", needle);
+    process.exit(1);
+  }
+}
+
 console.log("\u2713 smoke ok");

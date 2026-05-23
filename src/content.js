@@ -1,7 +1,7 @@
-// Doc Reader — content script scaffold
-// Runs on supported documentation sites. Subsequent roadmap items
-// build on top of this entry point (site detection, reader toggle,
-// TOC, highlights, etc.).
+// Doc Reader — content script
+// Detects supported documentation sites and provides a keyboard-driven
+// reader-mode toggle. Visual stripping/TOC come in subsequent roadmap
+// items; this file owns the lifecycle, state, and shortcut.
 
 (async () => {
   if (window.__docReaderLoaded) return;
@@ -9,15 +9,16 @@
 
   const NS = "doc-reader";
   const ROOT_ATTR = `data-${NS}-root`;
+  const ACTIVE_CLASS = `${NS}-active`; // "doc-reader-active"
 
-  // Site detection — load the registry from the extension package so
-  // both popup and content script share one source of truth.
+  const STORAGE_KEY = `${NS}:enabled`;
+
+  // ---- Site detection ------------------------------------------------------
   let site = null;
   try {
     const mod = await import(chrome.runtime.getURL("src/sites.js"));
     site = mod.detectSite(location);
   } catch (err) {
-    // Detection is best-effort; absence shouldn't break the page.
     if (window.__docReaderDebug) console.warn("[doc-reader] detect failed", err);
   }
 
@@ -29,31 +30,190 @@
     supported: !!site,
   };
 
-  // Tag the document so future CSS/features can scope to a known site.
   if (site) {
     document.documentElement.setAttribute(`data-${NS}-site`, site.id);
   }
 
+  // ---- Shadow-root UI scaffold --------------------------------------------
   function ensureRoot() {
     let root = document.querySelector(`[${ROOT_ATTR}]`);
     if (!root) {
       root = document.createElement("div");
       root.setAttribute(ROOT_ATTR, "");
       root.setAttribute("hidden", "");
-      // Shadow DOM keeps host page styles from leaking into the reader UI.
       root.attachShadow({ mode: "open" });
       (document.body || document.documentElement).appendChild(root);
+      mountShell(root.shadowRoot);
     }
     return root;
   }
 
-  function log(...args) {
-    // Keep noise low; gated on a flag for debugging.
-    if (window.__docReaderDebug) console.log(`[${NS}]`, ...args);
+  function mountShell(shadow) {
+    const accent = site?.accent || "#83d0f2";
+    const style = document.createElement("style");
+    style.textContent = `
+      :host, * { box-sizing: border-box; }
+      .pill {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        pointer-events: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px 8px 12px;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro", sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        line-height: 1.45;
+        color: rgba(245, 245, 247, 0.94);
+        background: linear-gradient(180deg, rgba(22,22,28,0.68), rgba(14,14,18,0.62));
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 999px;
+        box-shadow:
+          0 8px 24px rgba(0,0,0,0.32),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(18px) saturate(140%);
+        -webkit-backdrop-filter: blur(18px) saturate(140%);
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+        transition:
+          opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .pill[data-visible="1"] {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      .pill .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: ${accent};
+        box-shadow: 0 0 12px ${accent}88;
+      }
+      .pill[data-state="off"] .dot {
+        background: rgba(255,255,255,0.32);
+        box-shadow: none;
+      }
+      .pill .kbd {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10.5px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.10);
+        color: rgba(245,245,247,0.78);
+      }
+    `;
+    const pill = document.createElement("div");
+    pill.className = "pill";
+    pill.setAttribute("data-state", "off");
+    pill.innerHTML = `
+      <span class="dot" aria-hidden="true"></span>
+      <span class="label">Reader off</span>
+      <span class="kbd" aria-hidden="true">⇧R</span>
+    `;
+    shadow.appendChild(style);
+    shadow.appendChild(pill);
   }
 
-  // Message bridge — popup/background can ping for status or toggle.
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // ---- Toggle --------------------------------------------------------------
+  let pillHideTimer = 0;
+  function flashPill() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const pill = root?.shadowRoot?.querySelector(".pill");
+    if (!pill) return;
+    pill.setAttribute("data-state", state.enabled ? "on" : "off");
+    const label = pill.querySelector(".label");
+    if (label) label.textContent = state.enabled ? "Reader on" : "Reader off";
+    pill.setAttribute("data-visible", "1");
+    clearTimeout(pillHideTimer);
+    pillHideTimer = setTimeout(() => pill.removeAttribute("data-visible"), 1400);
+  }
+
+  function applyEnabled() {
+    const root = ensureRoot();
+    if (state.enabled) {
+      document.documentElement.classList.add(ACTIVE_CLASS);
+      root.removeAttribute("hidden");
+    } else {
+      document.documentElement.classList.remove(ACTIVE_CLASS);
+      // Keep the shadow host mounted; hide so future features can reuse it.
+      root.setAttribute("hidden", "");
+    }
+  }
+
+  function setEnabled(next, opts = {}) {
+    next = !!next;
+    if (next === state.enabled) {
+      if (opts.flash !== false) flashPill();
+      return state.enabled;
+    }
+    state.enabled = next;
+    applyEnabled();
+    if (opts.flash !== false) flashPill();
+    persistEnabled(next);
+    return state.enabled;
+  }
+
+  function toggleEnabled() {
+    return setEnabled(!state.enabled);
+  }
+  // Expose for tests / debugging without polluting global typings.
+  window.__docReaderToggle = toggleEnabled;
+
+  // ---- Persistence ---------------------------------------------------------
+  async function loadEnabled() {
+    if (!state.supported) return false;
+    try {
+      const got = await chrome.storage?.local?.get?.(STORAGE_KEY);
+      const map = got?.[STORAGE_KEY];
+      // Per-host persistence so toggling on MDN doesn't leak to react.dev.
+      if (map && typeof map === "object" && map[state.host]) return true;
+    } catch {
+      /* storage unavailable */
+    }
+    return false;
+  }
+
+  async function persistEnabled(value) {
+    try {
+      const got = await chrome.storage?.local?.get?.(STORAGE_KEY);
+      const map = (got && got[STORAGE_KEY]) || {};
+      if (value) map[state.host] = 1;
+      else delete map[state.host];
+      await chrome.storage?.local?.set?.({ [STORAGE_KEY]: map });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // ---- Keyboard shortcut: Shift+R -----------------------------------------
+  function isTypingTarget(el) {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = el.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  }
+
+  function onKeyDown(e) {
+    // Strict match: Shift + R, no other modifiers, not inside an input.
+    if (e.defaultPrevented) return;
+    if (e.key !== "R" && e.code !== "KeyR") return;
+    if (!e.shiftKey) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isTypingTarget(e.target)) return;
+    if (!state.supported) return;
+    e.preventDefault();
+    e.stopPropagation();
+    toggleEnabled();
+  }
+  window.addEventListener("keydown", onKeyDown, true);
+
+  // ---- Message bridge ------------------------------------------------------
+  chrome.runtime?.onMessage?.addListener?.((msg, _sender, sendResponse) => {
     if (!msg || typeof msg !== "object") return;
     switch (msg.type) {
       case "doc-reader/ping":
@@ -65,11 +225,25 @@
       case "doc-reader/detect":
         sendResponse({ supported: state.supported, site: state.site });
         return true;
+      case "doc-reader/toggle":
+        sendResponse({ enabled: toggleEnabled(), supported: state.supported });
+        return true;
+      case "doc-reader/set":
+        sendResponse({
+          enabled: setEnabled(!!msg.enabled),
+          supported: state.supported,
+        });
+        return true;
       default:
         return false;
     }
   });
 
+  // ---- Boot ----------------------------------------------------------------
   ensureRoot();
-  log("content script ready", state);
+  if (state.supported) {
+    const wasEnabled = await loadEnabled();
+    if (wasEnabled) setEnabled(true, { flash: false });
+  }
+  if (window.__docReaderDebug) console.log(`[${NS}]`, "ready", state);
 })();

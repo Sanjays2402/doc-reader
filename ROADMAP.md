@@ -4,7 +4,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 
 - [x] MV3 manifest + content script scaffolding
 - [x] Detect supported doc sites (MDN, React, Vercel, Tailwind, Next.js)
-- [ ] Toggle reader mode on/off (keyboard shortcut Shift+R)
+- [x] Toggle reader mode on/off (keyboard shortcut Shift+R)
 - [ ] Strip nav, sidebar, ads — keep article + code blocks
 - [ ] Single-column layout with adjustable max-width
 - [ ] Persistent TOC sidebar from h2/h3
