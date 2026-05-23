@@ -15,6 +15,7 @@
   const WIDTH_STORAGE_KEY = `${NS}:width`;
   const FONT_STORAGE_KEY = `${NS}:font-size`;
   const LH_STORAGE_KEY = `${NS}:line-height`;
+  const FAMILY_STORAGE_KEY = `${NS}:font-family`;
   const WIDTH_MIN = 560;
   const WIDTH_MAX = 1080;
   const WIDTH_DEFAULT = 720;
@@ -27,6 +28,25 @@
   const LH_MAX = 2.0;
   const LH_DEFAULT = 1.7;
   const LH_STEP = 0.05;
+  const FAMILIES = [
+    {
+      id: "sans",
+      label: "Sans",
+      stack: '-apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", "Segoe UI", system-ui, sans-serif',
+    },
+    {
+      id: "serif",
+      label: "Serif",
+      stack: '"Iowan Old Style", "Charter", "Source Serif Pro", "Georgia", "Cambria", "Times New Roman", Times, serif',
+    },
+    {
+      id: "mono",
+      label: "Mono",
+      stack: 'ui-monospace, SFMono-Regular, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace',
+    },
+  ];
+  const FAMILY_IDS = FAMILIES.map((f) => f.id);
+  const FAMILY_DEFAULT = "sans";
   const ARTICLE_ATTR = "data-doc-reader-article";
   const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
   const HEADING_ATTR = "data-doc-reader-heading";
@@ -53,6 +73,7 @@
     width: WIDTH_DEFAULT,
     fontSize: FONT_DEFAULT,
     lineHeight: LH_DEFAULT,
+    fontFamily: FAMILY_DEFAULT,
   };
 
   function clampWidth(n) {
@@ -67,6 +88,21 @@
     // Snap to 0.1 to keep storage tidy.
     n = Math.round(n * 10) / 10;
     return Math.min(FONT_MAX, Math.max(FONT_MIN, n));
+  }
+
+  function clampFamily(id) {
+    if (typeof id !== "string") return FAMILY_DEFAULT;
+    return FAMILY_IDS.includes(id) ? id : FAMILY_DEFAULT;
+  }
+
+  function familyStack(id) {
+    const f = FAMILIES.find((x) => x.id === clampFamily(id));
+    return f ? f.stack : FAMILIES[0].stack;
+  }
+
+  function familyLabel(id) {
+    const f = FAMILIES.find((x) => x.id === clampFamily(id));
+    return f ? f.label : FAMILIES[0].label;
   }
 
   function clampLineHeight(n) {
@@ -418,6 +454,8 @@
     const root = document.documentElement;
     root.style.setProperty("--doc-reader-font-size", `${state.fontSize}px`);
     root.style.setProperty("--doc-reader-line-height", String(state.lineHeight));
+    root.style.setProperty("--doc-reader-font-family", familyStack(state.fontFamily));
+    root.setAttribute("data-doc-reader-family", clampFamily(state.fontFamily));
   }
 
   function applySingleColumn() {
@@ -488,6 +526,23 @@
     }
     if (opts.persist !== false) persistLineHeight(v);
     return v;
+  }
+
+  async function setFontFamily(next, opts = {}) {
+    const v = clampFamily(next);
+    state.fontFamily = v;
+    if (state.enabled) {
+      applyTypography();
+      flashTypography(familyLabel(v));
+    }
+    if (opts.persist !== false) persistFontFamily(v);
+    return v;
+  }
+
+  function cycleFontFamily(dir = 1) {
+    const i = FAMILY_IDS.indexOf(clampFamily(state.fontFamily));
+    const next = FAMILY_IDS[(i + (dir > 0 ? 1 : FAMILY_IDS.length - 1)) % FAMILY_IDS.length];
+    return setFontFamily(next);
   }
 
   function flashWidth() {
@@ -953,6 +1008,26 @@
     } catch { /* ignore */ }
   }
 
+  async function loadFontFamily() {
+    try {
+      const got = await chrome.storage?.local?.get?.(FAMILY_STORAGE_KEY);
+      const map = got?.[FAMILY_STORAGE_KEY];
+      if (map && typeof map === "object" && map[state.host]) {
+        return clampFamily(map[state.host]);
+      }
+    } catch { /* storage unavailable */ }
+    return FAMILY_DEFAULT;
+  }
+
+  async function persistFontFamily(value) {
+    try {
+      const got = await chrome.storage?.local?.get?.(FAMILY_STORAGE_KEY);
+      const map = (got && got[FAMILY_STORAGE_KEY]) || {};
+      map[state.host] = clampFamily(value);
+      await chrome.storage?.local?.set?.({ [FAMILY_STORAGE_KEY]: map });
+    } catch { /* ignore */ }
+  }
+
   // ---- Keyboard shortcut: Shift+R -----------------------------------------
   function isTypingTarget(el) {
     if (!el) return false;
@@ -1015,6 +1090,13 @@
         setLineHeight(state.lineHeight + LH_STEP);
         return;
       }
+      // f cycles font family (sans -> serif -> mono).
+      if (e.key === "f" || e.code === "KeyF") {
+        e.preventDefault();
+        e.stopPropagation();
+        cycleFontFamily(1);
+        return;
+      }
     }
     // Shift + = (i.e. "+") also bumps font size, since plus reads better.
     if (state.enabled && e.shiftKey && (e.key === "+" || (e.code === "Equal" && e.shiftKey))) {
@@ -1058,9 +1140,18 @@
         sendResponse({
           fontSize: state.fontSize,
           lineHeight: state.lineHeight,
+          fontFamily: state.fontFamily,
+          families: FAMILIES.map((f) => ({ id: f.id, label: f.label })),
           fontMin: FONT_MIN, fontMax: FONT_MAX, fontStep: FONT_STEP, fontDefault: FONT_DEFAULT,
           lineMin: LH_MIN, lineMax: LH_MAX, lineStep: LH_STEP, lineDefault: LH_DEFAULT,
+          familyDefault: FAMILY_DEFAULT,
         });
+        return true;
+      case "doc-reader/set-font-family":
+        setFontFamily(msg.fontFamily).then((v) => sendResponse({ fontFamily: v }));
+        return true;
+      case "doc-reader/cycle-font-family":
+        cycleFontFamily(msg.dir === -1 ? -1 : 1).then((v) => sendResponse({ fontFamily: v }));
         return true;
       case "doc-reader/set-font-size":
         setFontSize(msg.fontSize).then((v) => sendResponse({ fontSize: v }));
@@ -1069,8 +1160,11 @@
         setLineHeight(msg.lineHeight).then((v) => sendResponse({ lineHeight: v }));
         return true;
       case "doc-reader/reset-typography":
-        Promise.all([setFontSize(FONT_DEFAULT), setLineHeight(LH_DEFAULT)])
-          .then(([f, l]) => sendResponse({ fontSize: f, lineHeight: l }));
+        Promise.all([
+          setFontSize(FONT_DEFAULT),
+          setLineHeight(LH_DEFAULT),
+          setFontFamily(FAMILY_DEFAULT),
+        ]).then(([f, l, fam]) => sendResponse({ fontSize: f, lineHeight: l, fontFamily: fam }));
         return true;
       case "doc-reader/progress":
         sendResponse({
@@ -1095,6 +1189,7 @@
     state.width = await loadWidth();
     state.fontSize = await loadFontSize();
     state.lineHeight = await loadLineHeight();
+    state.fontFamily = await loadFontFamily();
     applyWidth();
     applyTypography();
     const wasEnabled = await loadEnabled();

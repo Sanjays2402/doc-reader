@@ -10,7 +10,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Persistent TOC sidebar from h2/h3
 - [x] Reading progress indicator
 - [x] Font size + line-height controls
-- [ ] Serif/sans/mono toggle
+- [x] Serif/sans/mono toggle
 - [ ] Bookmark current section
 - [ ] Bookmarks list popup with search
 - [ ] Highlight tool (4 colors, persisted per URL)
