@@ -1444,6 +1444,14 @@
             </svg>
             <span>Markdown</span>
           </button>
+          <button type="button" data-action="export-highlights" title="Export highlights + notes (Shift+H)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+              <path d="M14 3l7 7-9 9H5v-7l9-9z" />
+              <path d="M11 6l7 7" />
+              <path d="M5 19l-2 2" />
+            </svg>
+            <span>Highlights</span>
+          </button>
           <button type="button" data-action="toggle-focus" title="Focus mode (Shift+F)" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
               <circle cx="12" cy="12" r="3" />
@@ -1467,6 +1475,10 @@
         <div class="panel-foot">
           <span>Export Markdown</span>
           <span class="kbd">⇧ M</span>
+        </div>
+        <div class="panel-foot">
+          <span>Export Highlights</span>
+          <span class="kbd">⇧ H</span>
         </div>
       </div>
     `;
@@ -1581,6 +1593,10 @@
     panel.querySelector('[data-action="export-md"]')?.addEventListener("click", (e) => {
       e.preventDefault();
       exportArticleToMarkdown();
+    });
+    panel.querySelector('[data-action="export-highlights"]')?.addEventListener("click", (e) => {
+      e.preventDefault();
+      exportHighlightsToMarkdown();
     });
     panel.querySelectorAll(".panel-slider").forEach((slider) => {
       slider.addEventListener("input", () => {
@@ -4375,6 +4391,98 @@
     return { ok, filename, bytes: body.length };
   }
 
+  // ---- Export highlights + notes to Markdown ----------------------------
+  // Walks `highlights` for the current URL, groups by the nearest preceding
+  // h1/h2/h3 in the article, and emits a clean Markdown document with the
+  // quoted text, color label, and the author's note (when present). Empty
+  // highlight set produces a friendly flash rather than an empty file.
+  function highlightSectionMap() {
+    if (!articleEl) return [];
+    const headings = [];
+    const nodes = articleEl.querySelectorAll("h1, h2, h3");
+    for (const h of nodes) {
+      const off = articleTextOffset(h, 0);
+      if (off < 0) continue;
+      const text = (h.textContent || "").trim().replace(/\s+/g, " ");
+      if (!text) continue;
+      const level = h.tagName === "H1" ? 1 : (h.tagName === "H2" ? 2 : 3);
+      headings.push({ off, text, level });
+    }
+    headings.sort((a, b) => a.off - b.off);
+    return headings;
+  }
+
+  function buildHighlightsMarkdownDocument() {
+    if (!articleEl) return null;
+    const list = Array.isArray(highlights) ? highlights.slice() : [];
+    if (!list.length) return "";
+    list.sort((a, b) => (a.start || 0) - (b.start || 0));
+    const headings = highlightSectionMap();
+    const sectionFor = (start) => {
+      let last = null;
+      for (const h of headings) {
+        if (h.off <= start) last = h;
+        else break;
+      }
+      return last;
+    };
+    const colorLabel = (id) => {
+      const c = HIGHLIGHT_COLORS.find((x) => x.id === id);
+      return c ? c.label : (id || "Highlight");
+    };
+    const title = getExportTitle();
+    const url = location.href;
+    const today = new Date().toISOString().slice(0, 10);
+    const out = [];
+    out.push(`# ${title} — Highlights`);
+    out.push("");
+    out.push(`*Source: <${url}>*  \n*Saved: ${today}*  \n*Highlights: ${list.length}*`);
+    out.push("");
+    out.push("---");
+    out.push("");
+    let lastKey = "__none__";
+    for (const h of list) {
+      const sec = sectionFor(h.start || 0);
+      const key = sec ? `${sec.level}|${sec.text}` : "__none__";
+      if (key !== lastKey) {
+        if (sec) {
+          out.push(`## ${sec.text}`);
+          out.push("");
+        }
+        lastKey = key;
+      }
+      const quote = String(h.text || "").trim().replace(/\r/g, "");
+      const quoted = quote.split("\n").map((l) => `> ${l}`).join("\n");
+      out.push(`- **[${colorLabel(h.color)}]**`);
+      out.push("");
+      out.push(quoted);
+      const note = h.note ? String(h.note).trim() : "";
+      if (note) {
+        out.push("");
+        out.push(`  *Note:* ${note.replace(/\n/g, "\n  ")}`);
+      }
+      out.push("");
+    }
+    return out.join("\n");
+  }
+
+  function exportHighlightsToMarkdown() {
+    if (!state.supported || !state.enabled || !articleEl) {
+      flashPill();
+      return { ok: false, reason: "reader-off" };
+    }
+    const body = buildHighlightsMarkdownDocument();
+    if (body === "" || body == null) {
+      flashTypography("No highlights yet");
+      return { ok: false, reason: "no-highlights", count: 0 };
+    }
+    const count = highlights.length;
+    const filename = `${slugifyForFile(getExportTitle())}-highlights.md`;
+    const ok = downloadMarkdown(filename, body);
+    flashTypography(ok ? `Exported ${count} highlight${count === 1 ? "" : "s"}` : "Export failed");
+    return { ok, filename, count, bytes: body.length };
+  }
+
   function isTypingTarget(el) {
     if (!el) return false;
     if (el.isContentEditable) return true;
@@ -4444,6 +4552,14 @@
       e.preventDefault();
       e.stopPropagation();
       exportArticleToMarkdown();
+      return;
+    }
+
+    // Shift + H exports highlights + notes to Markdown (reader mode only).
+    if (state.enabled && (e.key === "H" || e.code === "KeyH") && e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      exportHighlightsToMarkdown();
       return;
     }
 
@@ -4706,6 +4822,9 @@
         return true;
       case "doc-reader/export-markdown":
         sendResponse(exportArticleToMarkdown());
+        return true;
+      case "doc-reader/export-highlights":
+        sendResponse(exportHighlightsToMarkdown());
         return true;
       case "doc-reader/toggle-focus":
         sendResponse({ focus: toggleFocusMode() });
