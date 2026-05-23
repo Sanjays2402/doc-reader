@@ -1,0 +1,23 @@
+/* Doc Reader — content script base styles.
+   The reader UI itself lives inside a shadow root, so these rules
+   only define the host slot and a couple of safe utility classes
+   that future features can rely on. No host-page rewrites yet. */
+
+[data-doc-reader-root] {
+  all: initial;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600;
+  pointer-events: none;
+  contain: layout style;
+}
+
+[data-doc-reader-root][hidden] {
+  display: none !important;
+}
+
+/* When the reader is active, the host body gets this class so
+   future features can fade the underlying page. */
+html.doc-reader-active body {
+  overflow: hidden;
+}
