@@ -71,6 +71,10 @@
   const ANCESTOR_ATTR = "data-doc-reader-article-ancestor";
   const HEADING_ATTR = "data-doc-reader-heading";
   const META_ATTR = "data-doc-reader-meta";
+  const SECTION_ATTR = "data-doc-reader-section";
+  const SECTION_HIDDEN_ATTR = "data-doc-reader-section-hidden";
+  const COLLAPSED_ATTR = "data-doc-reader-collapsed";
+  const TOGGLE_ATTR = "data-doc-reader-section-toggle";
   const IMG_ATTR = "data-doc-reader-img";
   const LIGHTBOX_ZOOM_MIN = 0.25;
   const LIGHTBOX_ZOOM_MAX = 6;
@@ -1383,11 +1387,13 @@
     ensureReadingMeta();
     ensureCopyButtons();
     ensureImageEnhancements();
+    ensureSectionToggles();
   }
 
   function restoreSingleColumn() {
     removeReadingMeta();
     removeCopyButtons();
+    removeSectionToggles();
     if (articleEl) {
       try { articleEl.removeAttribute(ARTICLE_ATTR); } catch { /* detached */ }
       articleEl = null;
@@ -1837,6 +1843,124 @@
     ensureReadingMeta();
     ensureCopyButtons();
     ensureImageEnhancements();
+    ensureSectionToggles();
+  }
+
+  // ---- Section-collapse toggles on h2 headings ---------------------------
+  // Each h2 in the article gets a small liquid-glass chevron button that
+  // hides every sibling element until the next h2. Idempotent: re-running
+  // skips headings that already have a button mounted. TOC click on an item
+  // inside a collapsed section auto-expands its parent.
+  function getSectionSiblings(h2) {
+    if (!h2 || !h2.parentElement) return [];
+    const out = [];
+    let n = h2.nextElementSibling;
+    while (n) {
+      if (n.tagName === "H2") break;
+      out.push(n);
+      n = n.nextElementSibling;
+    }
+    return out;
+  }
+
+  function buildSectionToggle() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "doc-reader-section-toggle";
+    btn.setAttribute(TOGGLE_ATTR, "1");
+    btn.setAttribute("aria-label", "Collapse section");
+    btn.setAttribute("aria-expanded", "true");
+    btn.setAttribute("title", "Collapse section");
+    // Phosphor-style chevron, stroke-width 1.5, round caps.
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    `;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const h2 = btn.closest("h2");
+      if (h2) toggleSection(h2);
+    });
+    btn.addEventListener("mousedown", (e) => { e.stopPropagation(); });
+    return btn;
+  }
+
+  function toggleSection(h2, force) {
+    if (!h2) return;
+    const currentlyCollapsed = h2.getAttribute(COLLAPSED_ATTR) === "1";
+    const next = typeof force === "boolean" ? force : !currentlyCollapsed;
+    if (next === currentlyCollapsed) return;
+    const siblings = getSectionSiblings(h2);
+    for (const s of siblings) {
+      if (next) s.setAttribute(SECTION_HIDDEN_ATTR, "1");
+      else s.removeAttribute(SECTION_HIDDEN_ATTR);
+    }
+    if (next) h2.setAttribute(COLLAPSED_ATTR, "1");
+    else h2.removeAttribute(COLLAPSED_ATTR);
+    const btn = h2.querySelector(`:scope > [${TOGGLE_ATTR}="1"]`);
+    if (btn) {
+      btn.setAttribute("aria-expanded", String(!next));
+      btn.setAttribute("aria-label", next ? "Expand section" : "Collapse section");
+      btn.setAttribute("title", next ? "Expand section" : "Collapse section");
+    }
+  }
+
+  function ensureSectionToggles() {
+    if (!state.enabled || !articleEl || !articleEl.isConnected) return;
+    let h2s;
+    try { h2s = articleEl.querySelectorAll("h2"); } catch { return; }
+    for (const h2 of h2s) {
+      if (h2.closest(`[${HIDE_ATTR}="1"]`)) continue;
+      if (h2.closest(`[${META_ATTR}="1"]`)) continue;
+      if (h2.querySelector(`:scope > [${TOGGLE_ATTR}="1"]`)) continue;
+      h2.setAttribute(SECTION_ATTR, "1");
+      h2.appendChild(buildSectionToggle());
+    }
+  }
+
+  function removeSectionToggles() {
+    if (!articleEl) return;
+    let h2s;
+    try { h2s = articleEl.querySelectorAll(`h2[${SECTION_ATTR}="1"]`); } catch { return; }
+    for (const h2 of h2s) {
+      // Restore any siblings we had hidden.
+      if (h2.getAttribute(COLLAPSED_ATTR) === "1") {
+        for (const s of getSectionSiblings(h2)) s.removeAttribute(SECTION_HIDDEN_ATTR);
+      }
+      const btn = h2.querySelector(`:scope > [${TOGGLE_ATTR}="1"]`);
+      if (btn) btn.remove();
+      h2.removeAttribute(SECTION_ATTR);
+      h2.removeAttribute(COLLAPSED_ATTR);
+    }
+  }
+
+  function expandSectionContaining(target) {
+    if (!target || !articleEl) return;
+    if (target.tagName === "H2" && target.getAttribute(COLLAPSED_ATTR) === "1") {
+      toggleSection(target, false);
+      return;
+    }
+    const hidden = target.closest ? target.closest(`[${SECTION_HIDDEN_ATTR}="1"]`) : null;
+    if (!hidden) return;
+    // Walk back through previous siblings of the hidden node (and its
+    // ancestors at the same level) to find the owning h2.
+    let cursor = hidden;
+    while (cursor) {
+      let prev = cursor.previousElementSibling;
+      while (prev) {
+        if (prev.tagName === "H2" && prev.getAttribute(COLLAPSED_ATTR) === "1") {
+          toggleSection(prev, false);
+          return;
+        }
+        prev = prev.previousElementSibling;
+      }
+      cursor = cursor.parentElement && articleEl.contains(cursor.parentElement)
+        ? cursor.parentElement
+        : null;
+      if (cursor === articleEl) cursor = null;
+    }
   }
 
   function renderToc(entries) {
@@ -1888,6 +2012,7 @@
     if (!id) return;
     const target = document.getElementById(id);
     if (!target) return;
+    expandSectionContaining(target);
     tocClickGuardUntil = Date.now() + 700;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
     setActiveTocId(id);

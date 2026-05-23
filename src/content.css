@@ -572,6 +572,105 @@ html.doc-reader-active[data-doc-reader-syntax="neon"] [data-doc-reader-article="
   }
 }
 
+/* ─── Section collapse on h2 ──────────────────────────────────────────
+   Each h2 in the article gets a small liquid-glass chevron that collapses
+   the section underneath it (siblings up to the next h2). Marked siblings
+   carry [data-doc-reader-section-hidden="1"] which simply forces display:
+   none. The h2 itself never hides. Phosphor-style chevron rotates 180deg
+   when the section is collapsed. */
+html.doc-reader-active [data-doc-reader-article="1"] h2[data-doc-reader-section="1"] {
+  position: relative;
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+}
+html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-hidden="1"] {
+  display: none !important;
+}
+html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"] {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  color: var(--doc-reader-muted, rgba(20, 20, 26, 0.5));
+  background: color-mix(in oklch, var(--doc-reader-bg, #fafafa) 50%, transparent);
+  border: 1px solid var(--doc-reader-rule, rgba(20, 20, 26, 0.10));
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: saturate(180%) blur(10px);
+  -webkit-backdrop-filter: saturate(180%) blur(10px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 2px 8px rgba(20, 20, 26, 0.05);
+  transition:
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  line-height: 1;
+  flex-shrink: 0;
+  order: -1;
+}
+html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"]:hover {
+  color: var(--doc-reader-ink, #15151a);
+  background: color-mix(in oklch, var(--doc-reader-bg, #fafafa) 80%, transparent);
+  border-color: var(--doc-reader-rule-strong, rgba(20, 20, 26, 0.18));
+}
+html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"]:focus-visible {
+  outline: none;
+  border-color: var(--doc-reader-accent, #83d0f2);
+  box-shadow:
+    0 0 0 2px color-mix(in oklch, var(--doc-reader-accent, #83d0f2) 60%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"] svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active [data-doc-reader-article="1"] h2[data-doc-reader-collapsed="1"] [data-doc-reader-section-toggle="1"] svg {
+  transform: rotate(-90deg);
+}
+html.doc-reader-active[data-doc-reader-theme="dark"] [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"] {
+  color: rgba(245, 245, 247, 0.62);
+  background: rgba(40, 42, 52, 0.45);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 2px 8px rgba(0, 0, 0, 0.30);
+}
+html.doc-reader-active[data-doc-reader-theme="dark"] [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"]:hover {
+  color: rgba(245, 245, 247, 0.96);
+  background: rgba(60, 62, 72, 0.55);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"],
+  html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"] svg {
+    transition: none !important;
+  }
+}
+@media print {
+  html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-toggle="1"] {
+    display: none !important;
+  }
+  html.doc-reader-active [data-doc-reader-article="1"] [data-doc-reader-section-hidden="1"] {
+    display: revert !important;
+  }
+}
+
 /* ─── Print-friendly stylesheet ─────────────────────────────────────────
    When the user prints (Cmd/Ctrl+P) a doc page with reader mode active,
    strip the chrome (TOC, progress bar, control surfaces, highlights as
