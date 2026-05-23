@@ -27,3 +27,13 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Search-in-page overlay with match navigation
 - [x] Per-site enable/disable settings panel
 - [x] Recently read history (last 20 docs)
+- [ ] Annotations: add inline notes to highlights
+- [ ] Export highlights + notes to Markdown
+- [ ] Sync settings across browsers via chrome.storage.sync
+- [ ] Per-article reading position resume
+- [ ] Mini-map scrollbar showing headings + highlights
+- [ ] Vim-style keyboard navigation (j/k/gg/G)
+- [ ] Spaced-repetition queue for bookmarked sections
+- [ ] Auto-link cross-references between MDN/React/Next.js terms
+- [ ] Inline glossary tooltips for technical terms on hover
+- [ ] Custom CSS injection panel (per-site overrides)
