@@ -284,3 +284,146 @@ html.doc-reader-active mark[data-doc-reader-hl="1"]:hover {
     background: rgba(255, 176, 200, 0.30);
   }
 }
+
+/* ─── Print-friendly stylesheet ─────────────────────────────────────────
+   When the user prints (Cmd/Ctrl+P) a doc page with reader mode active,
+   strip the chrome (TOC, progress bar, control surfaces, highlights as
+   color blocks become underlines for ink economy) and lay out the
+   article as a clean single-column document. */
+@media print {
+  html.doc-reader-active,
+  html.doc-reader-active body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide every doc-reader chrome element. */
+  html.doc-reader-active #doc-reader-toc,
+  html.doc-reader-active #doc-reader-progress,
+  html.doc-reader-active #doc-reader-panel,
+  html.doc-reader-active #doc-reader-controls,
+  html.doc-reader-active #doc-reader-highlight-menu,
+  html.doc-reader-active .doc-reader-toast,
+  html.doc-reader-active [data-doc-reader-hide="1"] {
+    display: none !important;
+  }
+
+  /* Hide elements the original site hides on-screen too. */
+  html.doc-reader-active nav,
+  html.doc-reader-active aside,
+  html.doc-reader-active header > nav,
+  html.doc-reader-active footer,
+  html.doc-reader-active [role="navigation"],
+  html.doc-reader-active [role="banner"],
+  html.doc-reader-active [role="complementary"] {
+    display: none !important;
+  }
+
+  /* Single-column article, generous margins, ink-friendly type. */
+  html.doc-reader-active #doc-reader-article,
+  html.doc-reader-active main,
+  html.doc-reader-active article {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    color: #111111 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    font-family: "Inter", "SF Pro Text", Georgia, serif !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    letter-spacing: 0 !important;
+  }
+
+  html.doc-reader-active h1,
+  html.doc-reader-active h2,
+  html.doc-reader-active h3,
+  html.doc-reader-active h4 {
+    color: #000000 !important;
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  html.doc-reader-active h1 { font-size: 22pt !important; margin: 0 0 12pt !important; }
+  html.doc-reader-active h2 { font-size: 16pt !important; margin: 18pt 0 8pt !important; }
+  html.doc-reader-active h3 { font-size: 13pt !important; margin: 14pt 0 6pt !important; }
+
+  html.doc-reader-active p,
+  html.doc-reader-active li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Code blocks: preserve, but render with a thin border for legibility
+     instead of dark backgrounds that waste toner. */
+  html.doc-reader-active pre,
+  html.doc-reader-active pre code {
+    background: #f7f7f7 !important;
+    color: #111111 !important;
+    border: 1px solid #d8d8d8 !important;
+    border-radius: 4px;
+    padding: 8pt !important;
+    font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace !important;
+    font-size: 9.5pt !important;
+    line-height: 1.4 !important;
+    white-space: pre-wrap !important;
+    word-break: break-word;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+  html.doc-reader-active code {
+    background: #f2f2f2 !important;
+    color: #111111 !important;
+    padding: 1pt 3pt !important;
+    border-radius: 3px;
+    font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace !important;
+  }
+
+  /* Links: show the URL after the text so printouts are self-referential. */
+  html.doc-reader-active a[href] {
+    color: #000000 !important;
+    text-decoration: underline;
+  }
+  html.doc-reader-active a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8.5pt;
+    color: #555555;
+    word-break: break-all;
+  }
+  /* Suppress URL annotation inside headings and inline code. */
+  html.doc-reader-active h1 a[href]::after,
+  html.doc-reader-active h2 a[href]::after,
+  html.doc-reader-active h3 a[href]::after,
+  html.doc-reader-active h4 a[href]::after,
+  html.doc-reader-active code a[href]::after,
+  html.doc-reader-active pre a[href]::after {
+    content: "";
+  }
+
+  /* Highlights collapse to a thin underline so ink isn't burnt. */
+  html.doc-reader-active mark[data-doc-reader-hl="1"] {
+    background: transparent !important;
+    color: inherit !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid #555555 !important;
+  }
+
+  /* Tables and images stay inside the page. */
+  html.doc-reader-active img,
+  html.doc-reader-active svg,
+  html.doc-reader-active table {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Page setup: tight, predictable margins. */
+  @page {
+    size: auto;
+    margin: 16mm 14mm;
+  }
+}
