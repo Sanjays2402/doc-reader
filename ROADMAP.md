@@ -23,7 +23,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Inline image lightbox with zoom
 - [x] Section-collapse toggles on h2 headings
 - [x] Export current article to Markdown
-- [ ] Focus mode (dims everything except current paragraph)
+- [x] Focus mode (dims everything except current paragraph)
 - [ ] Search-in-page overlay with match navigation
 - [ ] Per-site enable/disable settings panel
 - [ ] Recently read history (last 20 docs)

@@ -19,6 +19,9 @@
   const SYNTAX_STORAGE_KEY = `${NS}:syntax-theme`;
   const BOOKMARK_STORAGE_KEY = `${NS}:bookmarks`;
   const HIGHLIGHT_STORAGE_KEY = `${NS}:highlights`;
+  const FOCUS_STORAGE_KEY = `${NS}:focus`;
+  const FOCUS_ATTR = `data-${NS}-focus`;
+  const FOCUS_TARGET_ATTR = `data-${NS}-focus-target`;
   const HIGHLIGHT_ATTR = "data-doc-reader-hl";
   const HIGHLIGHT_ID_ATTR = "data-doc-reader-hl-id";
   const HIGHLIGHT_COLOR_ATTR = "data-doc-reader-hl-color";
@@ -106,6 +109,7 @@
     fontFamily: FAMILY_DEFAULT,
     syntaxTheme: SYNTAX_THEME_DEFAULT,
     theme: "light",
+    focus: false,
   };
 
   // ---- Auto-detect dark mode preference -----------------------------------
@@ -1109,11 +1113,25 @@
             </svg>
             <span>Markdown</span>
           </button>
+          <button type="button" data-action="toggle-focus" title="Focus mode (Shift+F)" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 4v2" />
+              <path d="M12 18v2" />
+              <path d="M4 12h2" />
+              <path d="M18 12h2" />
+            </svg>
+            <span>Focus</span>
+          </button>
           <button type="button" class="primary" data-action="close">Done</button>
         </div>
         <div class="panel-foot">
           <span>Toggle panel</span>
           <span class="kbd">C</span>
+        </div>
+        <div class="panel-foot">
+          <span>Focus mode</span>
+          <span class="kbd">⇧ F</span>
         </div>
         <div class="panel-foot">
           <span>Export Markdown</span>
@@ -1193,6 +1211,10 @@
         setSyntaxTheme(SYNTAX_THEME_DEFAULT),
       ]);
       syncPanel();
+    });
+    panel.querySelector('[data-action="toggle-focus"]')?.addEventListener("click", (e) => {
+      e.preventDefault();
+      toggleFocusMode();
     });
     panel.querySelector('[data-action="export-md"]')?.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1322,6 +1344,12 @@
       if (active) btn.setAttribute("data-active", "1");
       else btn.removeAttribute("data-active");
     });
+    const focusBtn = panel.querySelector('[data-action="toggle-focus"]');
+    if (focusBtn) {
+      focusBtn.setAttribute("aria-pressed", state.focus ? "true" : "false");
+      if (state.focus) focusBtn.setAttribute("data-active", "1");
+      else focusBtn.removeAttribute("data-active");
+    }
   }
 
   // ---- Toggle --------------------------------------------------------------
@@ -1354,8 +1382,10 @@
       watchArticleForToc();
       startProgress();
       scheduleHighlightRestore();
+      if (state.focus) startFocusMode();
     } else {
       stopProgress();
+      stopFocusMode();
       hidePanel();
       hideToc();
       hidePalette();
@@ -2837,6 +2867,157 @@
   }
 
   // ---- Keyboard shortcut: Shift+R -----------------------------------------
+  // ---- Focus mode ---------------------------------------------------------
+  // Dims everything in the article except the user's current paragraph (or
+  // heading / list item / block). Target follows the pointer when hovering
+  // over a block, otherwise locks onto the block nearest the vertical
+  // viewport center as the user scrolls. The active block gets a marker
+  // attribute; ancestors get a sibling-dim hook. Pure attribute toggling so
+  // CSS owns the actual dim, fade, and animation.
+  const FOCUS_BLOCK_SELECTOR = "p, li, blockquote, h2, h3, h4, dl, dd, pre, figure, table";
+  let focusRaf = 0;
+  let focusScrollAttached = false;
+  let focusPointerAttached = false;
+  let focusActiveEl = null;
+
+  function focusableBlocks() {
+    if (!articleEl) return [];
+    let nodes = [];
+    try { nodes = Array.from(articleEl.querySelectorAll(FOCUS_BLOCK_SELECTOR)); } catch { return []; }
+    return nodes.filter((el) => {
+      if (el.closest(`[${META_ATTR}="1"]`)) return false;
+      if (el.closest(`[${HIDE_ATTR}="1"]`)) return false;
+      // Skip nested blocks inside a <pre> (only the <pre> itself counts).
+      if (el.tagName !== "PRE" && el.closest("pre")) return false;
+      // Skip nested <li> wrappers; the leaf <li> handler picks them up.
+      if (el.tagName === "DD" && el.closest("li")) return false;
+      return true;
+    });
+  }
+
+  function setFocusTarget(el) {
+    if (el === focusActiveEl) return;
+    if (focusActiveEl) {
+      try { focusActiveEl.removeAttribute(FOCUS_TARGET_ATTR); } catch { /* */ }
+    }
+    focusActiveEl = el || null;
+    if (focusActiveEl) {
+      try { focusActiveEl.setAttribute(FOCUS_TARGET_ATTR, "1"); } catch { /* */ }
+    }
+  }
+
+  function pickFocusByPoint(x, y) {
+    if (!articleEl) return null;
+    let el = null;
+    try { el = document.elementFromPoint(x, y); } catch { el = null; }
+    if (!el || !articleEl.contains(el)) return null;
+    return el.closest(FOCUS_BLOCK_SELECTOR);
+  }
+
+  function pickFocusByCenter() {
+    const blocks = focusableBlocks();
+    if (!blocks.length) return null;
+    const cy = window.innerHeight / 2;
+    let best = null;
+    let bestDist = Infinity;
+    for (const b of blocks) {
+      const r = b.getBoundingClientRect();
+      if (r.height <= 0) continue;
+      // Distance from block's vertical mid to viewport mid.
+      const mid = r.top + r.height / 2;
+      const d = Math.abs(mid - cy);
+      if (d < bestDist) { bestDist = d; best = b; }
+    }
+    return best;
+  }
+
+  function scheduleFocusUpdate() {
+    if (!state.focus || !state.enabled) return;
+    if (focusRaf) return;
+    focusRaf = requestAnimationFrame(() => {
+      focusRaf = 0;
+      if (!state.focus || !state.enabled) return;
+      // Prefer pointer target if cached and still under cursor; otherwise
+      // fall back to the block nearest the viewport center.
+      const next = pickFocusByCenter();
+      if (next) setFocusTarget(next);
+    });
+  }
+
+  function onFocusPointerMove(e) {
+    if (!state.focus || !state.enabled) return;
+    if (e.pointerType === "touch") return;
+    const hit = pickFocusByPoint(e.clientX, e.clientY);
+    if (hit) setFocusTarget(hit);
+  }
+
+  function startFocusMode() {
+    if (!state.enabled) return;
+    const root = document.documentElement;
+    root.setAttribute(FOCUS_ATTR, "1");
+    if (!focusScrollAttached) {
+      window.addEventListener("scroll", scheduleFocusUpdate, { passive: true });
+      window.addEventListener("resize", scheduleFocusUpdate, { passive: true });
+      focusScrollAttached = true;
+    }
+    if (!focusPointerAttached) {
+      document.addEventListener("pointermove", onFocusPointerMove, true);
+      focusPointerAttached = true;
+    }
+    scheduleFocusUpdate();
+  }
+
+  function stopFocusMode() {
+    const root = document.documentElement;
+    root.removeAttribute(FOCUS_ATTR);
+    if (focusScrollAttached) {
+      window.removeEventListener("scroll", scheduleFocusUpdate);
+      window.removeEventListener("resize", scheduleFocusUpdate);
+      focusScrollAttached = false;
+    }
+    if (focusPointerAttached) {
+      document.removeEventListener("pointermove", onFocusPointerMove, true);
+      focusPointerAttached = false;
+    }
+    if (focusRaf) { cancelAnimationFrame(focusRaf); focusRaf = 0; }
+    setFocusTarget(null);
+  }
+
+  function setFocusMode(next, opts = {}) {
+    next = !!next;
+    if (next === state.focus) return state.focus;
+    state.focus = next;
+    if (next && state.enabled) startFocusMode();
+    else stopFocusMode();
+    syncPanel();
+    if (opts.persist !== false) persistFocus(next);
+    return state.focus;
+  }
+
+  function toggleFocusMode() {
+    if (!state.enabled) return state.focus;
+    return setFocusMode(!state.focus);
+  }
+
+  async function loadFocus() {
+    try {
+      const got = await chrome.storage?.local?.get?.(FOCUS_STORAGE_KEY);
+      const map = got?.[FOCUS_STORAGE_KEY];
+      if (map && typeof map === "object" && map[state.host]) return true;
+    } catch { /* */ }
+    return false;
+  }
+
+  async function persistFocus(value) {
+    try {
+      const got = await chrome.storage?.local?.get?.(FOCUS_STORAGE_KEY);
+      const map = (got && got[FOCUS_STORAGE_KEY]) || {};
+      if (value) map[state.host] = 1;
+      else delete map[state.host];
+      await chrome.storage?.local?.set?.({ [FOCUS_STORAGE_KEY]: map });
+    } catch { /* */ }
+  }
+
   // ---- Inline image lightbox with zoom ----------------------------------
   // Clicking any <img> inside the article opens a frosted overlay with the
   // image at fit-to-screen, then zoom in/out (wheel + buttons + +/- keys),
@@ -3438,6 +3619,14 @@
       return;
     }
 
+    // Shift + F toggles focus mode (reader mode only).
+    if (state.enabled && (e.key === "F" || e.code === "KeyF") && e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFocusMode();
+      return;
+    }
+
     // [ and ] adjust max-width while reader mode is on. No shift.
     if (state.enabled && !e.shiftKey) {
       if (e.key === "[" || e.code === "BracketLeft") {
@@ -3690,6 +3879,15 @@
       case "doc-reader/export-markdown":
         sendResponse(exportArticleToMarkdown());
         return true;
+      case "doc-reader/toggle-focus":
+        sendResponse({ focus: toggleFocusMode() });
+        return true;
+      case "doc-reader/set-focus":
+        sendResponse({ focus: setFocusMode(!!msg.focus) });
+        return true;
+      case "doc-reader/get-focus":
+        sendResponse({ focus: state.focus, enabled: state.enabled });
+        return true;
       default:
         return false;
     }
@@ -3707,6 +3905,7 @@
     applyTypography();
     await loadBookmarks();
     await loadHighlights();
+    state.focus = await loadFocus();
     const wasEnabled = await loadEnabled();
     if (wasEnabled) setEnabled(true, { flash: false });
   }

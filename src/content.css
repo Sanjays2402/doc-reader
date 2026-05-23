@@ -132,6 +132,38 @@ html.doc-reader-active [data-doc-reader-article="1"] pre {
   overflow-x: auto;
 }
 
+/* Focus mode — when active, dim every block inside the article except the
+   one tagged as the current focus target. Pure CSS so the JS just toggles
+   attributes. Highlights and code-block chrome stay readable inside the
+   active block. */
+html.doc-reader-active[data-doc-reader-focus="1"] [data-doc-reader-article="1"] :where(
+  p, li, blockquote, h2, h3, h4, dl, dd, pre, figure, table
+) {
+  transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
+              filter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0.18;
+  filter: saturate(0.6);
+}
+html.doc-reader-active[data-doc-reader-focus="1"] [data-doc-reader-article="1"] [data-doc-reader-focus-target="1"],
+html.doc-reader-active[data-doc-reader-focus="1"] [data-doc-reader-article="1"] [data-doc-reader-focus-target="1"] :where(
+  p, li, blockquote, h2, h3, h4, dl, dd, pre, figure, table
+) {
+  opacity: 1 !important;
+  filter: none !important;
+}
+html.doc-reader-active[data-doc-reader-focus="1"] [data-doc-reader-article="1"] [data-doc-reader-meta="1"],
+html.doc-reader-active[data-doc-reader-focus="1"] [data-doc-reader-article="1"] [data-doc-reader-meta="1"] * {
+  opacity: 1 !important;
+  filter: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.doc-reader-active[data-doc-reader-focus="1"] [data-doc-reader-article="1"] :where(
+    p, li, blockquote, h2, h3, h4, dl, dd, pre, figure, table
+  ) {
+    transition: none;
+  }
+}
+
 /* Copy code button — one per <pre>. Liquid-glass pill that floats in the
    top-right corner of the code block. Visible-on-hover/focus to keep the
    reading surface calm, but keyboard-focusable always. Phosphor-style inline
