@@ -783,6 +783,17 @@
           color 180ms cubic-bezier(0.16, 1, 0.3, 1);
       }
       .panel-actions button:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.14); }
+      .panel-actions button .btn-icon {
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+        vertical-align: -2px;
+        margin-right: 6px;
+      }
       .panel-actions button:focus-visible { box-shadow: 0 0 0 2px ${accent}99; }
       .panel-actions .primary {
         background: linear-gradient(180deg, ${accent}33, ${accent}1c);
@@ -1090,11 +1101,23 @@
         </div>
         <div class="panel-actions">
           <button type="button" data-action="reset">Reset</button>
+          <button type="button" data-action="export-md" title="Export to Markdown (Shift+M)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+              <path d="M12 4v11" />
+              <path d="M7 11l5 5 5-5" />
+              <path d="M5 20h14" />
+            </svg>
+            <span>Markdown</span>
+          </button>
           <button type="button" class="primary" data-action="close">Done</button>
         </div>
         <div class="panel-foot">
           <span>Toggle panel</span>
           <span class="kbd">C</span>
+        </div>
+        <div class="panel-foot">
+          <span>Export Markdown</span>
+          <span class="kbd">⇧ M</span>
         </div>
       </div>
     `;
@@ -1170,6 +1193,10 @@
         setSyntaxTheme(SYNTAX_THEME_DEFAULT),
       ]);
       syncPanel();
+    });
+    panel.querySelector('[data-action="export-md"]')?.addEventListener("click", (e) => {
+      e.preventDefault();
+      exportArticleToMarkdown();
     });
     panel.querySelectorAll(".panel-slider").forEach((slider) => {
       slider.addEventListener("input", () => {
@@ -3077,6 +3104,287 @@
     if (src) openLightbox(t, src);
   }, true);
 
+  // ---- Markdown export ---------------------------------------------------
+  // Walks the article subtree and converts the relevant nodes into a
+  // GitHub-flavored Markdown string. Skips the reader's own injected
+  // chrome (meta strip, copy buttons, section toggles) and any nodes the
+  // strip-noise feature has tagged as hidden so the export matches what
+  // the user sees in reader mode.
+
+  function isReaderInjectedNode(node) {
+    if (!node || node.nodeType !== 1) return false;
+    if (node.hasAttribute(META_ATTR)) return true;
+    if (node.hasAttribute(COPY_ATTR)) return true;
+    if (node.hasAttribute(TOGGLE_ATTR)) return true;
+    return false;
+  }
+
+  function detectCodeLanguage(pre) {
+    const code = pre.querySelector("code") || pre;
+    const classes = (code.className || "") + " " + (pre.className || "");
+    const m = classes.match(/(?:language|lang)-([A-Za-z0-9+#.-]+)/);
+    if (m) return m[1].toLowerCase();
+    const dl = code.getAttribute("data-language") || pre.getAttribute("data-language");
+    if (dl) return String(dl).toLowerCase();
+    return "";
+  }
+
+  function mdEscape(text) {
+    return String(text).replace(/([\\`*_{}\[\]()#+\-!])/g, "\\$1");
+  }
+
+  function nodeToMarkdownInline(node) {
+    if (!node) return "";
+    if (node.nodeType === 3) return mdEscape(node.nodeValue || "");
+    if (node.nodeType !== 1) return "";
+    if (isReaderInjectedNode(node)) return "";
+    const tag = node.tagName.toLowerCase();
+    const inner = () => Array.from(node.childNodes).map(nodeToMarkdownInline).join("");
+    switch (tag) {
+      case "br": return "  \n";
+      case "strong":
+      case "b": {
+        const t = inner().trim();
+        return t ? `**${t}**` : "";
+      }
+      case "em":
+      case "i": {
+        const t = inner().trim();
+        return t ? `*${t}*` : "";
+      }
+      case "del":
+      case "s":
+      case "strike": {
+        const t = inner().trim();
+        return t ? `~~${t}~~` : "";
+      }
+      case "code": {
+        const txt = node.textContent || "";
+        return txt ? `\`${txt.replace(/`/g, "\u200b`\u200b")}\`` : "";
+      }
+      case "a": {
+        const href = node.getAttribute("href") || "";
+        const label = inner().trim() || mdEscape(node.textContent || "");
+        if (!href) return label;
+        try {
+          const abs = new URL(href, location.href).href;
+          return `[${label}](${abs})`;
+        } catch {
+          return `[${label}](${href})`;
+        }
+      }
+      case "img": {
+        const alt = node.getAttribute("alt") || "";
+        const src = node.getAttribute("src") || node.getAttribute("data-src") || "";
+        if (!src) return "";
+        try { return `![${alt}](${new URL(src, location.href).href})`; }
+        catch { return `![${alt}](${src})`; }
+      }
+      case "sup":
+      case "sub":
+      case "span":
+      case "abbr":
+      case "cite":
+      case "mark":
+      case "small":
+      case "u":
+        return inner();
+      default:
+        return inner();
+    }
+  }
+
+  function listToMarkdown(node, ordered, depth) {
+    const indent = "  ".repeat(depth);
+    const lines = [];
+    let n = 1;
+    for (const child of node.children) {
+      if (child.tagName !== "LI") continue;
+      if (isReaderInjectedNode(child)) continue;
+      const bullet = ordered ? `${n}.` : "-";
+      const parts = [];
+      const subLists = [];
+      for (const c of child.childNodes) {
+        if (c.nodeType === 1 && (c.tagName === "UL" || c.tagName === "OL")) {
+          subLists.push(c);
+        } else {
+          parts.push(c);
+        }
+      }
+      const text = parts.map(nodeToMarkdownInline).join("").trim();
+      lines.push(`${indent}${bullet} ${text || ""}`.trimEnd());
+      for (const sl of subLists) {
+        lines.push(listToMarkdown(sl, sl.tagName === "OL", depth + 1));
+      }
+      n += 1;
+    }
+    return lines.filter(Boolean).join("\n");
+  }
+
+  function tableToMarkdown(table) {
+    const rows = Array.from(table.querySelectorAll("tr")).filter((r) => !isReaderInjectedNode(r));
+    if (!rows.length) return "";
+    const cells = rows.map((tr) =>
+      Array.from(tr.children)
+        .filter((c) => /^(TD|TH)$/.test(c.tagName) && !isReaderInjectedNode(c))
+        .map((c) => nodeToMarkdownInline(c).replace(/\|/g, "\\|").replace(/\n+/g, " ").trim())
+    );
+    if (!cells[0]?.length) return "";
+    const width = Math.max(...cells.map((r) => r.length));
+    const norm = cells.map((r) => {
+      const out = r.slice();
+      while (out.length < width) out.push("");
+      return out;
+    });
+    const head = norm[0];
+    const body = norm.slice(1);
+    const sep = head.map(() => "---");
+    const out = [`| ${head.join(" | ")} |`, `| ${sep.join(" | ")} |`];
+    for (const r of body) out.push(`| ${r.join(" | ")} |`);
+    return out.join("\n");
+  }
+
+  function blockToMarkdown(node) {
+    if (!node || node.nodeType !== 1) {
+      if (node?.nodeType === 3) {
+        const t = (node.nodeValue || "").trim();
+        return t ? mdEscape(t) : "";
+      }
+      return "";
+    }
+    if (isReaderInjectedNode(node)) return "";
+    if (node.hasAttribute("data-doc-reader-hide") && node.getAttribute("data-doc-reader-hide") === "1") return "";
+    if (node.hasAttribute(SECTION_HIDDEN_ATTR)) return "";
+    const tag = node.tagName.toLowerCase();
+    switch (tag) {
+      case "h1": return `# ${nodeToMarkdownInline(node).trim()}`;
+      case "h2": return `## ${nodeToMarkdownInline(node).trim()}`;
+      case "h3": return `### ${nodeToMarkdownInline(node).trim()}`;
+      case "h4": return `#### ${nodeToMarkdownInline(node).trim()}`;
+      case "h5": return `##### ${nodeToMarkdownInline(node).trim()}`;
+      case "h6": return `###### ${nodeToMarkdownInline(node).trim()}`;
+      case "p": {
+        const t = nodeToMarkdownInline(node).trim();
+        return t;
+      }
+      case "blockquote": {
+        const inner = Array.from(node.childNodes).map(blockToMarkdown).filter(Boolean).join("\n\n");
+        return inner.split("\n").map((l) => `> ${l}`).join("\n");
+      }
+      case "pre": {
+        const lang = detectCodeLanguage(node);
+        const txt = getPreText(node).replace(/\s+$/, "");
+        return `\`\`\`${lang}\n${txt}\n\`\`\``;
+      }
+      case "ul": return listToMarkdown(node, false, 0);
+      case "ol": return listToMarkdown(node, true, 0);
+      case "hr": return "---";
+      case "table": return tableToMarkdown(node);
+      case "figure": {
+        const parts = [];
+        for (const c of node.children) {
+          const out = blockToMarkdown(c);
+          if (out) parts.push(out);
+        }
+        return parts.join("\n\n");
+      }
+      case "figcaption": {
+        const t = nodeToMarkdownInline(node).trim();
+        return t ? `*${t}*` : "";
+      }
+      case "img": return nodeToMarkdownInline(node);
+      case "section":
+      case "article":
+      case "div": {
+        const parts = [];
+        for (const c of node.childNodes) {
+          const out = blockToMarkdown(c);
+          if (out) parts.push(out);
+        }
+        return parts.join("\n\n");
+      }
+      default: {
+        // Inline-leaning element at block position: render as paragraph.
+        const t = nodeToMarkdownInline(node).trim();
+        return t;
+      }
+    }
+  }
+
+  function getExportTitle() {
+    if (!articleEl) return document.title || "document";
+    let h1 = null;
+    try { h1 = articleEl.querySelector("h1"); } catch { h1 = null; }
+    const text = (h1?.textContent || document.title || "document").trim();
+    return text || "document";
+  }
+
+  function buildMarkdownDocument() {
+    if (!articleEl) return null;
+    const title = getExportTitle();
+    const url = location.href;
+    const today = new Date().toISOString().slice(0, 10);
+    const header = [
+      `# ${title}`,
+      "",
+      `*Source: <${url}>*  \n*Saved: ${today}*`,
+      "",
+      "---",
+      "",
+    ].join("\n");
+    const blocks = [];
+    for (const c of articleEl.children) {
+      // Skip the h1 if we already used it in the header.
+      if (c.tagName === "H1" && blocks.length === 0) continue;
+      const md = blockToMarkdown(c);
+      if (md && md.trim()) blocks.push(md.trim());
+    }
+    return header + blocks.join("\n\n") + "\n";
+  }
+
+  function slugifyForFile(text) {
+    return (text || "document")
+      .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "document";
+  }
+
+  function downloadMarkdown(filename, body) {
+    try {
+      const blob = new Blob([body], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        try { a.remove(); } catch {}
+        try { URL.revokeObjectURL(url); } catch {}
+      }, 1500);
+      return true;
+    } catch (err) {
+      if (window.__docReaderDebug) console.warn(`[${NS}]`, "download failed", err);
+      return false;
+    }
+  }
+
+  function exportArticleToMarkdown() {
+    if (!state.supported || !state.enabled || !articleEl) {
+      flashPill();
+      return { ok: false, reason: "reader-off" };
+    }
+    const body = buildMarkdownDocument();
+    if (!body) return { ok: false, reason: "no-article" };
+    const filename = `${slugifyForFile(getExportTitle())}.md`;
+    const ok = downloadMarkdown(filename, body);
+    flashTypography(ok ? "Exported Markdown" : "Export failed");
+    return { ok, filename, bytes: body.length };
+  }
+
   function isTypingTarget(el) {
     if (!el) return false;
     if (el.isContentEditable) return true;
@@ -3119,6 +3427,14 @@
       e.preventDefault();
       e.stopPropagation();
       toggleEnabled();
+      return;
+    }
+
+    // Shift + M exports the current article to Markdown (reader mode only).
+    if (state.enabled && (e.key === "M" || e.code === "KeyM") && e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      exportArticleToMarkdown();
       return;
     }
 
@@ -3370,6 +3686,9 @@
       case "doc-reader/close-lightbox":
         closeLightbox();
         sendResponse({ ok: true });
+        return true;
+      case "doc-reader/export-markdown":
+        sendResponse(exportArticleToMarkdown());
         return true;
       default:
         return false;

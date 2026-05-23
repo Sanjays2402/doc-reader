@@ -22,7 +22,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Syntax theme picker (3 themes: noir, paper, neon)
 - [x] Inline image lightbox with zoom
 - [x] Section-collapse toggles on h2 headings
-- [ ] Export current article to Markdown
+- [x] Export current article to Markdown
 - [ ] Focus mode (dims everything except current paragraph)
 - [ ] Search-in-page overlay with match navigation
 - [ ] Per-site enable/disable settings panel
