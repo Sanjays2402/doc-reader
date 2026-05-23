@@ -145,6 +145,10 @@ async function setSiteEnabled(siteId, enabled) {
   sitePrefs = { ...sitePrefs, [siteId]: !!enabled };
   try {
     await chrome.storage?.local?.set?.({ [SITE_PREFS_KEY]: sitePrefs });
+    // Mirror to chrome.storage.sync so the toggle follows the user across
+    // signed-in browsers. Best-effort; quota / unavailability is silently
+    // tolerated because local is the source of truth for the live tab.
+    try { await chrome.storage?.sync?.set?.({ [SITE_PREFS_KEY]: sitePrefs }); } catch { /* noop */ }
   } catch { /* noop */ }
 }
 

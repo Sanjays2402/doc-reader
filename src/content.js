@@ -23,6 +23,20 @@
   const HISTORY_MAX = 20;
   const HIGHLIGHT_STORAGE_KEY = `${NS}:highlights`;
   const FOCUS_STORAGE_KEY = `${NS}:focus`;
+  // Keys mirrored across browsers via chrome.storage.sync. Bookmarks,
+  // highlights, annotations, and history are intentionally excluded: they are
+  // URL-bound content that easily blows past the per-item sync quota. Only
+  // small per-host preference maps live here.
+  const SYNCED_KEYS = [
+    STORAGE_KEY,
+    SITE_PREFS_KEY,
+    WIDTH_STORAGE_KEY,
+    FONT_STORAGE_KEY,
+    LH_STORAGE_KEY,
+    FAMILY_STORAGE_KEY,
+    SYNTAX_STORAGE_KEY,
+    FOCUS_STORAGE_KEY,
+  ];
   const FOCUS_ATTR = `data-${NS}-focus`;
   const FOCUS_TARGET_ATTR = `data-${NS}-focus-target`;
   const HIGHLIGHT_ATTR = "data-doc-reader-hl";
@@ -3347,6 +3361,7 @@
       if (value) map[state.host] = 1;
       else delete map[state.host];
       await chrome.storage?.local?.set?.({ [STORAGE_KEY]: map });
+      mirrorToSync(STORAGE_KEY, map);
     } catch {
       /* ignore */
     }
@@ -3371,6 +3386,7 @@
       const map = (got && got[WIDTH_STORAGE_KEY]) || {};
       map[state.host] = clampWidth(value);
       await chrome.storage?.local?.set?.({ [WIDTH_STORAGE_KEY]: map });
+      mirrorToSync(WIDTH_STORAGE_KEY, map);
     } catch {
       /* ignore */
     }
@@ -3393,6 +3409,7 @@
       const map = (got && got[FONT_STORAGE_KEY]) || {};
       map[state.host] = clampFontSize(value);
       await chrome.storage?.local?.set?.({ [FONT_STORAGE_KEY]: map });
+      mirrorToSync(FONT_STORAGE_KEY, map);
     } catch { /* ignore */ }
   }
 
@@ -3413,6 +3430,7 @@
       const map = (got && got[LH_STORAGE_KEY]) || {};
       map[state.host] = clampLineHeight(value);
       await chrome.storage?.local?.set?.({ [LH_STORAGE_KEY]: map });
+      mirrorToSync(LH_STORAGE_KEY, map);
     } catch { /* ignore */ }
   }
 
@@ -3433,6 +3451,7 @@
       const map = (got && got[FAMILY_STORAGE_KEY]) || {};
       map[state.host] = clampFamily(value);
       await chrome.storage?.local?.set?.({ [FAMILY_STORAGE_KEY]: map });
+      mirrorToSync(FAMILY_STORAGE_KEY, map);
     } catch { /* ignore */ }
   }
 
@@ -3453,6 +3472,7 @@
       const map = (got && got[SYNTAX_STORAGE_KEY]) || {};
       map[state.host] = clampSyntaxTheme(value);
       await chrome.storage?.local?.set?.({ [SYNTAX_STORAGE_KEY]: map });
+      mirrorToSync(SYNTAX_STORAGE_KEY, map);
     } catch { /* ignore */ }
   }
 
@@ -3605,8 +3625,65 @@
       if (value) map[state.host] = 1;
       else delete map[state.host];
       await chrome.storage?.local?.set?.({ [FOCUS_STORAGE_KEY]: map });
+      mirrorToSync(FOCUS_STORAGE_KEY, map);
     } catch { /* */ }
   }
+
+  // ---- chrome.storage.sync bridge ----------------------------------------
+  // Per-host preference maps (enable state, site prefs, width, font size,
+  // line-height, font family, syntax theme, focus mode) ride chrome.storage
+  // .sync so settings follow the user across signed-in browsers. The local
+  // store remains the source of truth for the running page; sync is mirrored
+  // in both directions. On boot we hydrate local from sync (sync values win
+  // per-host, then merge in any local-only hosts). On every persist we push
+  // the updated map to sync (best-effort, swallow quota errors). On remote
+  // sync changes we copy the new value into local, which trips the existing
+  // local onChanged listeners and keeps the live page in step.
+  async function mirrorToSync(key, map) {
+    try {
+      if (!chrome.storage?.sync?.set) return;
+      await chrome.storage.sync.set({ [key]: map });
+    } catch { /* quota / unavailable */ }
+  }
+
+  async function hydrateFromSync() {
+    try {
+      if (!chrome.storage?.sync?.get) return;
+      const remote = await chrome.storage.sync.get(SYNCED_KEYS);
+      if (!remote || typeof remote !== "object") return;
+      const localGot = await chrome.storage?.local?.get?.(SYNCED_KEYS) || {};
+      const writes = {};
+      for (const key of SYNCED_KEYS) {
+        const r = remote[key];
+        if (!r || typeof r !== "object") continue;
+        const l = (localGot[key] && typeof localGot[key] === "object") ? localGot[key] : {};
+        // Sync wins per-host; keep local-only hosts that sync hasn't seen.
+        const merged = { ...l, ...r };
+        // Skip the write if the maps already match to avoid a redundant
+        // onChanged storm on boot.
+        if (JSON.stringify(merged) !== JSON.stringify(l)) writes[key] = merged;
+      }
+      if (Object.keys(writes).length) {
+        await chrome.storage?.local?.set?.(writes);
+      }
+    } catch { /* sync unavailable */ }
+  }
+
+  // When another browser pushes a change, replay it into local so the
+  // existing local-area listeners + reload paths pick it up.
+  chrome.storage?.onChanged?.addListener?.((changes, area) => {
+    if (area !== "sync") return;
+    const writes = {};
+    for (const key of SYNCED_KEYS) {
+      if (!changes[key]) continue;
+      const next = changes[key].newValue;
+      if (next === undefined) continue;
+      writes[key] = next;
+    }
+    if (Object.keys(writes).length) {
+      try { chrome.storage?.local?.set?.(writes); } catch { /* */ }
+    }
+  });
 
   // ---- Inline image lightbox with zoom ----------------------------------
   // Clicking any <img> inside the article opens a frosted overlay with the
@@ -4860,6 +4937,8 @@
   // ---- Boot ----------------------------------------------------------------
   ensureRoot();
   if (state.supported) {
+    // Pull any cross-browser preferences into local before we read them.
+    await hydrateFromSync();
     state.width = await loadWidth();
     state.fontSize = await loadFontSize();
     state.lineHeight = await loadLineHeight();

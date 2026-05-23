@@ -29,7 +29,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Recently read history (last 20 docs)
 - [x] Annotations: add inline notes to highlights
 - [x] Export highlights + notes to Markdown
-- [ ] Sync settings across browsers via chrome.storage.sync
+- [x] Sync settings across browsers via chrome.storage.sync
 - [ ] Per-article reading position resume
 - [ ] Mini-map scrollbar showing headings + highlights
 - [ ] Vim-style keyboard navigation (j/k/gg/G)

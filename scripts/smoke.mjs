@@ -92,6 +92,10 @@ for (const needle of [
   "HISTORY_STORAGE_KEY",
   "recordHistoryVisit",
   "HISTORY_MAX",
+  "hydrateFromSync",
+  "mirrorToSync",
+  "chrome.storage.sync",
+  "SYNCED_KEYS",
 ]) {
   if (!contentSrc.includes(needle)) {
     console.error("content.js missing reader-toggle token:", needle);
