@@ -491,6 +491,41 @@ html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-color="pi
 html.doc-reader-active mark[data-doc-reader-hl="1"]:hover {
   filter: brightness(1.05);
 }
+
+/* ---- Search-in-page match marks ---------------------------------------
+   Wrapped around literal substring matches inside the article while the
+   search overlay is open. Each mark gets a soft amber wash; the current
+   match pops with a brighter background and a focus ring so the user can
+   track jumps. */
+html.doc-reader-active mark[data-doc-reader-search="1"] {
+  background: rgba(255, 214, 102, 0.34);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+  margin: 0 -1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background 160ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active mark[data-doc-reader-search="1"][data-current="1"] {
+  background: rgba(255, 168, 56, 0.72);
+  color: #1a1208;
+  box-shadow: 0 0 0 2px rgba(255, 168, 56, 0.65),
+              0 6px 18px rgba(255, 142, 0, 0.32);
+}
+@media (prefers-color-scheme: dark) {
+  html.doc-reader-active mark[data-doc-reader-search="1"] {
+    background: rgba(255, 214, 102, 0.24);
+    color: inherit;
+  }
+  html.doc-reader-active mark[data-doc-reader-search="1"][data-current="1"] {
+    background: rgba(255, 168, 56, 0.62);
+    color: #1a1208;
+    box-shadow: 0 0 0 2px rgba(255, 184, 80, 0.7),
+                0 6px 18px rgba(255, 142, 0, 0.28);
+  }
+}
 @media (prefers-color-scheme: dark) {
   html.doc-reader-active mark[data-doc-reader-hl="1"][data-doc-reader-hl-color="yellow"] {
     background: rgba(255, 216, 107, 0.30);

@@ -79,6 +79,9 @@
   const COLLAPSED_ATTR = "data-doc-reader-collapsed";
   const TOGGLE_ATTR = "data-doc-reader-section-toggle";
   const IMG_ATTR = "data-doc-reader-img";
+  const SEARCH_ATTR = "data-doc-reader-search";
+  const SEARCH_ID_ATTR = "data-doc-reader-search-id";
+  const SEARCH_CURRENT_ATTR = "data-current";
   const LIGHTBOX_ZOOM_MIN = 0.25;
   const LIGHTBOX_ZOOM_MAX = 6;
   const LIGHTBOX_ZOOM_STEP = 0.25;
@@ -992,6 +995,146 @@
         .lightbox-stage { inset: 40px 16px 88px; }
         .lightbox-caption { top: 10px; max-width: calc(100vw - 32px); }
       }
+
+      /* ---- Search-in-page overlay -------------------------------------- */
+      .search {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translate(-50%, -10px);
+        z-index: 2147483646;
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", system-ui, sans-serif;
+      }
+      .search[data-visible="1"] {
+        opacity: 1;
+        transform: translate(-50%, 0);
+        pointer-events: auto;
+      }
+      .search-glass {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px 8px 14px;
+        min-width: 420px;
+        max-width: min(560px, calc(100vw - 48px));
+        background: linear-gradient(180deg, rgba(22,22,28,0.72), rgba(14,14,18,0.62));
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 999px;
+        box-shadow:
+          0 20px 56px rgba(0,0,0,0.42),
+          inset 0 1px 0 rgba(255,255,255,0.06);
+        backdrop-filter: blur(22px) saturate(150%);
+        -webkit-backdrop-filter: blur(22px) saturate(150%);
+        overflow: hidden;
+        color: rgba(245,245,247,0.92);
+        font-size: 13px;
+        letter-spacing: -0.01em;
+      }
+      .search-blob {
+        position: absolute;
+        inset: -50% -20% auto auto;
+        width: 220px;
+        height: 220px;
+        background: radial-gradient(closest-side, ${accent}40, transparent 70%);
+        filter: blur(28px);
+        pointer-events: none;
+      }
+      .search-icon {
+        flex: 0 0 auto;
+        width: 16px;
+        height: 16px;
+        stroke: ${accent};
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .search-input {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 4px 0;
+        background: transparent;
+        border: 0;
+        outline: none;
+        color: rgba(245,245,247,0.96);
+        font: inherit;
+        letter-spacing: -0.01em;
+        line-height: 1.4;
+      }
+      .search-input::placeholder { color: rgba(245,245,247,0.46); }
+      .search-input::-webkit-search-cancel-button { display: none; }
+      .search-count {
+        flex: 0 0 auto;
+        min-width: 46px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        color: rgba(245,245,247,0.66);
+        font-size: 12px;
+      }
+      .search-count[data-empty="1"] { color: rgba(255,140,140,0.78); }
+      .search-sep {
+        flex: 0 0 auto;
+        width: 1px;
+        height: 18px;
+        background: rgba(255,255,255,0.12);
+      }
+      .search-btn {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        color: rgba(245,245,247,0.88);
+        cursor: pointer;
+        transition:
+          background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+          color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .search-btn svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .search-btn:hover { background: rgba(255,255,255,0.08); color: rgba(245,245,247,0.98); }
+      .search-btn:focus-visible {
+        outline: none;
+        border-color: ${accent}99;
+        box-shadow: 0 0 0 2px ${accent}55;
+      }
+      .search-btn:disabled { opacity: 0.36; cursor: not-allowed; }
+      [data-doc-reader-theme="light"] .search-glass {
+        background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(248,248,250,0.78));
+        border-color: rgba(0,0,0,0.08);
+        color: rgba(20,20,24,0.92);
+        box-shadow:
+          0 18px 48px rgba(0,0,0,0.18),
+          inset 0 1px 0 rgba(255,255,255,0.7);
+      }
+      [data-doc-reader-theme="light"] .search-input { color: rgba(20,20,24,0.96); }
+      [data-doc-reader-theme="light"] .search-input::placeholder { color: rgba(20,20,24,0.42); }
+      [data-doc-reader-theme="light"] .search-count { color: rgba(20,20,24,0.6); }
+      [data-doc-reader-theme="light"] .search-sep { background: rgba(0,0,0,0.10); }
+      [data-doc-reader-theme="light"] .search-btn { color: rgba(20,20,24,0.84); }
+      [data-doc-reader-theme="light"] .search-btn:hover { background: rgba(0,0,0,0.06); }
+      @media (max-width: 720px) {
+        .search-glass { min-width: 0; width: calc(100vw - 32px); }
+      }
     `;
     const progress = document.createElement("div");
     progress.className = "progress";
@@ -1140,11 +1283,41 @@
       </div>
     `;
 
+    const search = document.createElement("section");
+    search.className = "search";
+    search.setAttribute("role", "search");
+    search.setAttribute("aria-label", "Search in page");
+    search.setAttribute("aria-hidden", "true");
+    search.innerHTML = `
+      <div class="search-glass">
+        <span class="search-blob" aria-hidden="true"></span>
+        <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="6" />
+          <path d="M20 20l-4-4" />
+        </svg>
+        <input type="search" class="search-input" autocomplete="off" autocorrect="off" spellcheck="false"
+          aria-label="Search in page" placeholder="Search in page" />
+        <span class="search-count" data-search-count aria-live="polite">0/0</span>
+        <span class="search-sep" aria-hidden="true"></span>
+        <button type="button" class="search-btn" data-search="prev" aria-label="Previous match" title="Previous (⇧ Enter)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+        </button>
+        <button type="button" class="search-btn" data-search="next" aria-label="Next match" title="Next (Enter)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+        <span class="search-sep" aria-hidden="true"></span>
+        <button type="button" class="search-btn" data-search="close" aria-label="Close search" title="Close (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>
+        </button>
+      </div>
+    `;
+
     shadow.appendChild(style);
     shadow.appendChild(progress);
     shadow.appendChild(toc);
     shadow.appendChild(pill);
     shadow.appendChild(panel);
+    shadow.appendChild(search);
 
     const lightbox = document.createElement("div");
     lightbox.className = "lightbox";
@@ -1179,6 +1352,7 @@
 
     wirePanel(shadow);
     wireLightbox(shadow);
+    wireSearch(shadow);
   }
 
   // ---- Control panel wiring ----------------------------------------------
@@ -1389,6 +1563,7 @@
       hidePanel();
       hideToc();
       hidePalette();
+      closeSearch();
       clearAllHighlightMarks();
       restoreSingleColumn();
       restoreNoise();
@@ -3285,6 +3460,241 @@
     if (src) openLightbox(t, src);
   }, true);
 
+  // ---- Search-in-page overlay -------------------------------------------
+  // A glassy overlay (lives in the shadow root) that lets the user search
+  // the article body and jump between matches. Matches are wrapped in
+  // <mark data-doc-reader-search="1"> nodes so we get free styling. The
+  // overlay never persists across reloads or reader-mode toggles.
+  let searchOpen = false;
+  let searchQuery = "";
+  let searchMatches = [];   // array of <mark> elements
+  let searchIndex = -1;
+  let searchDebounce = 0;
+  let searchRestoreFocus = null;
+
+  function searchEls() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const shadow = root?.shadowRoot;
+    if (!shadow) return null;
+    const wrap = shadow.querySelector(".search");
+    const input = shadow.querySelector(".search-input");
+    const count = shadow.querySelector("[data-search-count]");
+    if (!wrap || !input || !count) return null;
+    return { root, shadow, wrap, input, count };
+  }
+
+  function wireSearch(shadow) {
+    const wrap = shadow.querySelector(".search");
+    const input = shadow.querySelector(".search-input");
+    if (!wrap || !input) return;
+    input.addEventListener("input", () => {
+      if (searchDebounce) clearTimeout(searchDebounce);
+      const q = input.value;
+      searchDebounce = setTimeout(() => {
+        searchDebounce = 0;
+        runSearch(q);
+      }, 90);
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault(); e.stopPropagation();
+        closeSearch();
+      } else if (e.key === "Enter") {
+        e.preventDefault(); e.stopPropagation();
+        if (e.shiftKey) gotoMatch(-1, { relative: true });
+        else gotoMatch(1, { relative: true });
+      }
+    });
+    wrap.querySelector('[data-search="next"]')?.addEventListener("click", (e) => {
+      e.preventDefault(); gotoMatch(1, { relative: true }); input.focus();
+    });
+    wrap.querySelector('[data-search="prev"]')?.addEventListener("click", (e) => {
+      e.preventDefault(); gotoMatch(-1, { relative: true }); input.focus();
+    });
+    wrap.querySelector('[data-search="close"]')?.addEventListener("click", (e) => {
+      e.preventDefault(); closeSearch();
+    });
+  }
+
+  function clearSearchMarks() {
+    if (!articleEl) { searchMatches = []; searchIndex = -1; return; }
+    let marks = [];
+    try { marks = Array.from(articleEl.querySelectorAll(`mark[${SEARCH_ATTR}="1"]`)); } catch { marks = []; }
+    for (const m of marks) {
+      const parent = m.parentNode;
+      if (!parent) continue;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+      parent.normalize?.();
+    }
+    searchMatches = [];
+    searchIndex = -1;
+  }
+
+  function buildSearchMatches(query) {
+    clearSearchMarks();
+    if (!articleEl || !articleEl.isConnected) return [];
+    const q = (query || "").trim();
+    if (!q) return [];
+    const lc = q.toLowerCase();
+    // Walk text nodes inside the article, skipping reader chrome and hidden
+    // nodes. Wrap each match in its own <mark>.
+    let textNodes = [];
+    try {
+      const walker = document.createTreeWalker(articleEl, NodeFilter.SHOW_TEXT, {
+        acceptNode(n) {
+          if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          const p = n.parentElement;
+          if (!p) return NodeFilter.FILTER_REJECT;
+          const tag = p.tagName;
+          if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT") return NodeFilter.FILTER_REJECT;
+          if (p.closest(`[${META_ATTR}="1"]`)) return NodeFilter.FILTER_REJECT;
+          if (p.closest(`[${HIDE_ATTR}="1"]`)) return NodeFilter.FILTER_REJECT;
+          if (p.closest(`[${SECTION_HIDDEN_ATTR}="1"]`)) return NodeFilter.FILTER_REJECT;
+          if (p.closest(`mark[${SEARCH_ATTR}="1"]`)) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      });
+      let n; while ((n = walker.nextNode())) textNodes.push(n);
+    } catch { return []; }
+    const matches = [];
+    let count = 0;
+    const HARD_CAP = 2000;
+    for (const tn of textNodes) {
+      if (count >= HARD_CAP) break;
+      const value = tn.nodeValue;
+      const lower = value.toLowerCase();
+      let from = 0;
+      let idx = lower.indexOf(lc, from);
+      if (idx < 0) continue;
+      // Split the text node into [pre][match][post], collecting marks.
+      let cursor = tn;
+      let consumed = 0;
+      while (idx >= 0 && count < HARD_CAP) {
+        const localStart = idx - consumed;
+        const middle = cursor.splitText(localStart);
+        const tail = middle.splitText(lc.length);
+        const mark = document.createElement("mark");
+        mark.setAttribute(SEARCH_ATTR, "1");
+        mark.setAttribute(SEARCH_ID_ATTR, String(count));
+        mark.textContent = middle.nodeValue;
+        middle.parentNode.replaceChild(mark, middle);
+        matches.push(mark);
+        count += 1;
+        consumed = idx + lc.length;
+        cursor = tail;
+        idx = lower.indexOf(lc, consumed);
+        if (!cursor || !cursor.nodeValue) break;
+      }
+    }
+    return matches;
+  }
+
+  function setCurrentMatch(idx, opts = {}) {
+    if (!searchMatches.length) {
+      searchIndex = -1;
+      updateSearchCount();
+      return;
+    }
+    const n = searchMatches.length;
+    const next = ((idx % n) + n) % n;
+    for (const m of searchMatches) m.removeAttribute(SEARCH_CURRENT_ATTR);
+    const cur = searchMatches[next];
+    cur.setAttribute(SEARCH_CURRENT_ATTR, "1");
+    searchIndex = next;
+    if (opts.scroll !== false) {
+      try {
+        cur.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+      } catch {
+        try { cur.scrollIntoView(); } catch { /* */ }
+      }
+    }
+    updateSearchCount();
+  }
+
+  function gotoMatch(delta, opts = {}) {
+    if (!searchMatches.length) return;
+    const rel = opts.relative !== false;
+    if (rel && searchIndex < 0) {
+      setCurrentMatch(delta > 0 ? 0 : searchMatches.length - 1);
+    } else {
+      setCurrentMatch(searchIndex + delta);
+    }
+  }
+
+  function updateSearchCount() {
+    const els = searchEls();
+    if (!els) return;
+    const total = searchMatches.length;
+    const cur = searchIndex >= 0 ? searchIndex + 1 : 0;
+    els.count.textContent = total > 0 ? `${cur}/${total}` : (searchQuery ? "0/0" : "0/0");
+    if (searchQuery && total === 0) els.count.setAttribute("data-empty", "1");
+    else els.count.removeAttribute("data-empty");
+    const prev = els.wrap.querySelector('[data-search="prev"]');
+    const next = els.wrap.querySelector('[data-search="next"]');
+    if (prev) prev.disabled = total < 2;
+    if (next) next.disabled = total < 2;
+  }
+
+  function runSearch(query) {
+    searchQuery = query || "";
+    if (!state.enabled) {
+      clearSearchMarks();
+      updateSearchCount();
+      return;
+    }
+    searchMatches = buildSearchMatches(searchQuery);
+    if (searchMatches.length) setCurrentMatch(0);
+    else { searchIndex = -1; updateSearchCount(); }
+  }
+
+  function openSearch() {
+    if (!state.enabled) return;
+    const els = searchEls();
+    if (!els) return;
+    searchRestoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    els.wrap.setAttribute("data-visible", "1");
+    els.wrap.setAttribute("aria-hidden", "false");
+    searchOpen = true;
+    // Pre-fill from current selection when it's short enough.
+    try {
+      const sel = window.getSelection?.();
+      const txt = sel && !sel.isCollapsed ? String(sel).trim() : "";
+      if (txt && txt.length <= 80 && articleEl && sel.anchorNode && articleEl.contains(sel.anchorNode)) {
+        els.input.value = txt;
+        runSearch(txt);
+      } else if (els.input.value) {
+        runSearch(els.input.value);
+      }
+    } catch { /* */ }
+    requestAnimationFrame(() => {
+      try { els.input.focus(); els.input.select(); } catch { /* */ }
+    });
+  }
+
+  function closeSearch() {
+    const els = searchEls();
+    if (els) {
+      els.wrap.removeAttribute("data-visible");
+      els.wrap.setAttribute("aria-hidden", "true");
+    }
+    clearSearchMarks();
+    searchQuery = "";
+    if (els) { els.input.value = ""; updateSearchCount(); }
+    searchOpen = false;
+    if (searchRestoreFocus && typeof searchRestoreFocus.focus === "function") {
+      try { searchRestoreFocus.focus(); } catch { /* */ }
+    }
+    searchRestoreFocus = null;
+  }
+
+  function toggleSearch() {
+    if (searchOpen) closeSearch();
+    else openSearch();
+  }
+
+  function isSearchOpen() { return searchOpen; }
+
   // ---- Markdown export ---------------------------------------------------
   // Walks the article subtree and converts the relevant nodes into a
   // GitHub-flavored Markdown string. Skips the reader's own injected
@@ -3575,9 +3985,20 @@
 
   function onKeyDown(e) {
     if (e.defaultPrevented) return;
+    if (!state.supported) return;
+
+    // Cmd/Ctrl+F: open search overlay (reader mode only). Done before the
+    // modifier guard below so the shortcut still reaches us.
+    if (state.enabled && !isSearchOpen() && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === "f" || e.key === "F" || e.code === "KeyF")) {
+      if (!isTypingTarget(e.target)) {
+        e.preventDefault(); e.stopPropagation();
+        openSearch();
+        return;
+      }
+    }
+
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTypingTarget(e.target)) return;
-    if (!state.supported) return;
 
     // Lightbox key handling — when open, Escape closes; +/- zoom; 0 resets.
     if (isLightboxOpen()) {
@@ -3608,6 +4029,14 @@
       e.preventDefault();
       e.stopPropagation();
       toggleEnabled();
+      return;
+    }
+
+    // Slash (/) opens the search-in-page overlay (reader mode only).
+    if (state.enabled && !isSearchOpen() && (e.key === "/" || e.code === "Slash") && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      openSearch();
       return;
     }
 
@@ -3887,6 +4316,23 @@
         return true;
       case "doc-reader/get-focus":
         sendResponse({ focus: state.focus, enabled: state.enabled });
+        return true;
+      case "doc-reader/open-search":
+        openSearch();
+        sendResponse({ open: isSearchOpen() });
+        return true;
+      case "doc-reader/close-search":
+        closeSearch();
+        sendResponse({ open: isSearchOpen() });
+        return true;
+      case "doc-reader/search":
+        if (typeof msg.query === "string") {
+          openSearch();
+          const els = searchEls();
+          if (els) { els.input.value = msg.query; }
+          runSearch(msg.query);
+        }
+        sendResponse({ matches: searchMatches.length, index: searchIndex });
         return true;
       default:
         return false;
