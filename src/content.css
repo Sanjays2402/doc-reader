@@ -27,3 +27,12 @@ html.doc-reader-active [data-doc-reader-root] .pill,
 html.doc-reader-active [data-doc-reader-root] [data-interactive] {
   pointer-events: auto;
 }
+
+/* Strip nav, sidebar, ads — keep article + code blocks.
+   Elements matched by per-site noise selectors get tagged with
+   data-doc-reader-hide="1" by the content script. Hiding is gated by
+   the html.doc-reader-active class so the page is untouched until
+   reader mode is on. */
+html.doc-reader-active [data-doc-reader-hide="1"] {
+  display: none !important;
+}

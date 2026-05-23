@@ -15,9 +15,11 @@
 
   // ---- Site detection ------------------------------------------------------
   let site = null;
+  let commonNoise = [];
   try {
     const mod = await import(chrome.runtime.getURL("src/sites.js"));
     site = mod.detectSite(location);
+    commonNoise = Array.isArray(mod.COMMON_NOISE) ? mod.COMMON_NOISE : [];
   } catch (err) {
     if (window.__docReaderDebug) console.warn("[doc-reader] detect failed", err);
   }
@@ -138,11 +140,73 @@
     if (state.enabled) {
       document.documentElement.classList.add(ACTIVE_CLASS);
       root.removeAttribute("hidden");
+      stripNoise();
     } else {
+      restoreNoise();
       document.documentElement.classList.remove(ACTIVE_CLASS);
       // Keep the shadow host mounted; hide so future features can reuse it.
       root.setAttribute("hidden", "");
     }
+  }
+
+  // ---- Strip noise (nav, sidebar, ads) ------------------------------------
+  // Hides per-site chrome while keeping the article subtree (and code blocks
+  // within it) untouched. We tag matching elements with a stable attribute
+  // so the accompanying CSS rule does the actual hiding, and we remember
+  // which nodes we tagged so disabling reader mode restores the page.
+  const HIDE_ATTR = "data-doc-reader-hide";
+  let hiddenNodes = [];
+
+  function getKeepAncestors() {
+    if (!site) return new Set();
+    const keep = new Set();
+    let article = null;
+    try { article = document.querySelector(site.article); } catch { /* bad selector */ }
+    if (!article) return keep;
+    for (let n = article; n && n.nodeType === 1; n = n.parentElement) {
+      keep.add(n);
+    }
+    // Also keep the article subtree itself — code blocks live there.
+    keep.add(article);
+    return keep;
+  }
+
+  function stripNoise() {
+    if (!state.supported) return;
+    restoreNoise(); // idempotent
+    const selectors = [
+      ...(Array.isArray(site?.noise) ? site.noise : []),
+      ...commonNoise,
+    ];
+    if (selectors.length === 0) return;
+    const keep = getKeepAncestors();
+    const seen = new Set();
+    for (const sel of selectors) {
+      let nodes;
+      try { nodes = document.querySelectorAll(sel); } catch { continue; }
+      for (const el of nodes) {
+        if (!el || seen.has(el)) continue;
+        if (keep.has(el)) continue;
+        // Don't hide a node that contains the article — would nuke it.
+        if (el.contains && keep.size > 0) {
+          let containsKeep = false;
+          for (const k of keep) {
+            if (el !== k && el.contains(k)) { containsKeep = true; break; }
+          }
+          if (containsKeep) continue;
+        }
+        seen.add(el);
+        el.setAttribute(HIDE_ATTR, "1");
+        hiddenNodes.push(el);
+      }
+    }
+  }
+
+  function restoreNoise() {
+    for (const el of hiddenNodes) {
+      try { el.removeAttribute(HIDE_ATTR); } catch { /* detached */ }
+    }
+    hiddenNodes = [];
   }
 
   function setEnabled(next, opts = {}) {

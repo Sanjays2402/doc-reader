@@ -41,6 +41,25 @@ for (const bad of ["https://example.com/", "https://vercel.com/pricing", "not a 
 }
 if (SITES.length < 5) { console.error("SITES registry too small"); process.exit(1); }
 
+// Each site must declare a noise selector list so the strip feature has
+// something to hide. COMMON_NOISE is shared across all sites.
+const { COMMON_NOISE } = await import("../src/sites.js");
+if (!Array.isArray(COMMON_NOISE) || COMMON_NOISE.length === 0) {
+  console.error("COMMON_NOISE must be a non-empty array"); process.exit(1);
+}
+for (const s of SITES) {
+  if (!Array.isArray(s.noise) || s.noise.length === 0) {
+    console.error("site missing noise selectors:", s.id); process.exit(1);
+  }
+}
+
+// Content CSS must hide tagged nodes only when reader mode is active.
+const contentCss = fs.readFileSync("src/content.css", "utf8");
+if (!/html\.doc-reader-active\s+\[data-doc-reader-hide="1"\][\s\S]*display\s*:\s*none/.test(contentCss)) {
+  console.error("content.css must hide [data-doc-reader-hide=\"1\"] when reader is active");
+  process.exit(1);
+}
+
 // Reader toggle: content script must register the Shift+R shortcut and
 // expose a toggle entry point. We grep for stable tokens rather than
 // loading the script (it depends on chrome.* globals).
@@ -51,6 +70,9 @@ for (const needle of [
   "doc-reader/toggle",
   "__docReaderToggle",
   "doc-reader-active",
+  "stripNoise",
+  "restoreNoise",
+  "data-doc-reader-hide",
 ]) {
   if (!contentSrc.includes(needle)) {
     console.error("content.js missing reader-toggle token:", needle);
