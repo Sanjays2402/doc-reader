@@ -127,6 +127,11 @@ for (const needle of [
   "id=\"history-btn\"",
   "id=\"tpl-history-row\"",
   "Recently read",
+  "id=\"review-view\"",
+  "id=\"review-list\"",
+  "id=\"review-btn\"",
+  "id=\"tpl-review-card\"",
+  "Review queue",
 ]) {
   if (!popupHtml.includes(needle)) { console.error("popup.html missing:", needle); process.exit(1); }
 }
@@ -151,6 +156,11 @@ for (const needle of [
   "renderHistory",
   "removeHistoryEntry",
   "clearHistory",
+  "doc-reader:sr",
+  "renderReview",
+  "scheduleSr",
+  "gradeCard",
+  "reconcileSrWithBookmarks",
 ]) {
   if (!popupJs.includes(needle)) { console.error("popup.js missing:", needle); process.exit(1); }
 }
@@ -164,6 +174,8 @@ for (const needle of [
   ".bm",
   ".empty",
   ".hist-row",
+  ".sr-card",
+  ".sr-actions",
 ]) {
   if (!popupCss.includes(needle)) { console.error("popup.css missing:", needle); process.exit(1); }
 }

@@ -8,6 +8,8 @@
 const BOOKMARK_KEY = "doc-reader:bookmarks";
 const SITE_PREFS_KEY = "doc-reader:site-prefs";
 const HISTORY_KEY = "doc-reader:history";
+const SR_KEY = "doc-reader:sr";
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** @type {Record<string, Array<{id:string,text:string,level:number,addedAt:number}>>} */
 let bookmarkMap = {};
@@ -17,7 +19,13 @@ let sitePrefs = {};
 let sites = [];
 /** @type {Array<{url:string,title:string,siteId:string,siteLabel:string,accent:string,visitedAt:number}>} */
 let history = [];
-let currentView = "bookmarks"; // "bookmarks" | "settings" | "history"
+/**
+ * Spaced-repetition state keyed by `${canonicalUrl}::${bookmarkId}`.
+ * Stores SM-2 lite scheduling per card.
+ * @type {Record<string, {url:string,id:string,text:string,reps:number,ease:number,intervalDays:number,due:number,lastReviewed:number,createdAt:number}>}
+ */
+let srMap = {};
+let currentView = "bookmarks"; // "bookmarks" | "settings" | "history" | "review"
 
 const root = document.getElementById("root");
 const settingsView = document.getElementById("settings-view");
@@ -28,6 +36,12 @@ const historyView = document.getElementById("history-view");
 const historyListEl = document.getElementById("history-list");
 const historyClearBtn = document.getElementById("history-clear");
 const historyBtn = document.getElementById("history-btn");
+const reviewView = document.getElementById("review-view");
+const reviewListEl = document.getElementById("review-list");
+const reviewBtn = document.getElementById("review-btn");
+const reviewBadge = document.getElementById("review-badge");
+const reviewStats = document.getElementById("review-stats");
+const tplReviewCard = /** @type {HTMLTemplateElement} */ (document.getElementById("tpl-review-card"));
 const viewTitle = document.getElementById("view-title");
 const searchSection = document.querySelector(".search");
 const backBtn = document.getElementById("back-btn");
@@ -53,6 +67,9 @@ document.getElementById("settings-btn")?.addEventListener("click", () => {
 });
 historyBtn?.addEventListener("click", () => {
   setView(currentView === "history" ? "bookmarks" : "history");
+});
+reviewBtn?.addEventListener("click", () => {
+  setView(currentView === "review" ? "bookmarks" : "review");
 });
 historyClearBtn?.addEventListener("click", () => clearHistory());
 backBtn?.addEventListener("click", () => setView("bookmarks"));
@@ -98,6 +115,110 @@ async function loadSitePrefs() {
     sitePrefs = map && typeof map === "object" ? map : {};
   } catch {
     sitePrefs = {};
+  }
+}
+
+async function loadSr() {
+  try {
+    const got = await chrome.storage?.local?.get?.(SR_KEY);
+    const map = got?.[SR_KEY];
+    srMap = map && typeof map === "object" ? map : {};
+  } catch {
+    srMap = {};
+  }
+}
+
+async function saveSr() {
+  try {
+    await chrome.storage?.local?.set?.({ [SR_KEY]: srMap });
+    try { await chrome.storage?.sync?.set?.({ [SR_KEY]: srMap }); } catch { /* noop */ }
+  } catch { /* noop */ }
+}
+
+function srKeyFor(url, id) { return `${url}::${id}`; }
+
+/** Ensure every active bookmark has an SR card; drop cards for removed bookmarks. */
+function reconcileSrWithBookmarks() {
+  const now = Date.now();
+  const live = new Set();
+  let mutated = false;
+  for (const [url, list] of Object.entries(bookmarkMap)) {
+    if (!Array.isArray(list)) continue;
+    for (const b of list) {
+      if (!b || !b.id) continue;
+      const k = srKeyFor(url, b.id);
+      live.add(k);
+      if (!srMap[k]) {
+        srMap[k] = {
+          url,
+          id: b.id,
+          text: b.text || b.id,
+          reps: 0,
+          ease: 2.5,
+          intervalDays: 0,
+          due: now, // brand-new cards are due immediately
+          lastReviewed: 0,
+          createdAt: b.addedAt || now,
+        };
+        mutated = true;
+      } else if (srMap[k].text !== (b.text || b.id)) {
+        srMap[k].text = b.text || b.id;
+        mutated = true;
+      }
+    }
+  }
+  for (const k of Object.keys(srMap)) {
+    if (!live.has(k)) { delete srMap[k]; mutated = true; }
+  }
+  if (mutated) saveSr();
+}
+
+/** SM-2 lite: grade is "again" | "good" | "easy". */
+function scheduleSr(card, grade) {
+  const now = Date.now();
+  card.lastReviewed = now;
+  if (grade === "again") {
+    card.reps = 0;
+    card.ease = Math.max(1.3, card.ease - 0.2);
+    card.intervalDays = 0;
+    card.due = now + 10 * 60 * 1000; // 10 minutes
+    return card;
+  }
+  card.reps = (card.reps || 0) + 1;
+  if (grade === "easy") card.ease = Math.min(2.8, card.ease + 0.15);
+  let next;
+  if (card.reps === 1) next = grade === "easy" ? 3 : 1;
+  else if (card.reps === 2) next = grade === "easy" ? 7 : 4;
+  else next = Math.round((card.intervalDays || 1) * card.ease * (grade === "easy" ? 1.3 : 1));
+  next = Math.max(1, next);
+  card.intervalDays = next;
+  card.due = now + next * DAY_MS;
+  return card;
+}
+
+async function gradeCard(key, grade) {
+  const card = srMap[key];
+  if (!card) return;
+  scheduleSr(card, grade);
+  await saveSr();
+  if (currentView === "review") renderReview();
+  else updateReviewBadge();
+}
+
+function dueCards(now = Date.now()) {
+  return Object.entries(srMap)
+    .filter(([, c]) => c && c.due <= now)
+    .sort((a, b) => (a[1].due || 0) - (b[1].due || 0));
+}
+
+function updateReviewBadge() {
+  if (!reviewBadge) return;
+  const due = dueCards().length;
+  if (due > 0) {
+    reviewBadge.hidden = false;
+    reviewBadge.textContent = due > 99 ? "99+" : String(due);
+  } else {
+    reviewBadge.hidden = true;
   }
 }
 
@@ -153,13 +274,21 @@ async function setSiteEnabled(siteId, enabled) {
 }
 
 function setView(view) {
-  currentView = view === "settings" ? "settings" : view === "history" ? "history" : "bookmarks";
+  currentView = view === "settings"
+    ? "settings"
+    : view === "history"
+      ? "history"
+      : view === "review"
+        ? "review"
+        : "bookmarks";
   const showSettings = currentView === "settings";
   const showHistory = currentView === "history";
+  const showReview = currentView === "review";
   const showBookmarks = currentView === "bookmarks";
   if (root) root.hidden = !showBookmarks;
   if (settingsView) settingsView.hidden = !showSettings;
   if (historyView) historyView.hidden = !showHistory;
+  if (reviewView) reviewView.hidden = !showReview;
   if (searchSection) searchSection.hidden = !showBookmarks;
   if (backBtn) backBtn.hidden = showBookmarks;
   if (viewTitle) {
@@ -167,7 +296,9 @@ function setView(view) {
       ? "Settings"
       : showHistory
         ? "Recently read"
-        : "Doc Reader";
+        : showReview
+          ? "Review queue"
+          : "Doc Reader";
   }
   if (settingsBtn) {
     settingsBtn.setAttribute("aria-pressed", showSettings ? "true" : "false");
@@ -177,8 +308,13 @@ function setView(view) {
     historyBtn.setAttribute("aria-pressed", showHistory ? "true" : "false");
     historyBtn.title = showHistory ? "Close history" : "Recently read";
   }
+  if (reviewBtn) {
+    reviewBtn.setAttribute("aria-pressed", showReview ? "true" : "false");
+    reviewBtn.title = showReview ? "Close review queue" : "Review queue";
+  }
   if (showSettings) renderSites();
   else if (showHistory) renderHistory();
+  else if (showReview) renderReview();
   else render();
 }
 
@@ -200,6 +336,17 @@ try {
       const next = changes[HISTORY_KEY].newValue;
       history = Array.isArray(next) ? next.filter((e) => e && e.url) : [];
       if (currentView === "history") renderHistory();
+    }
+    if (changes[SR_KEY]) {
+      const next = changes[SR_KEY].newValue;
+      srMap = next && typeof next === "object" ? next : {};
+      updateReviewBadge();
+      if (currentView === "review") renderReview();
+    }
+    if (changes[BOOKMARK_KEY]) {
+      // Bookmark change already updated bookmarkMap above; resync SR cards.
+      reconcileSrWithBookmarks();
+      updateReviewBadge();
     }
   });
 } catch { /* noop */ }
@@ -413,11 +560,89 @@ function flash(msg) {
 }
 
 (async function init() {
-  await Promise.all([loadBookmarks(), loadSitePrefs(), loadSites(), loadHistory()]);
+  await Promise.all([loadBookmarks(), loadSitePrefs(), loadSites(), loadHistory(), loadSr()]);
+  reconcileSrWithBookmarks();
+  updateReviewBadge();
   render();
   // Defer focus until after first paint so the layout settles.
   requestAnimationFrame(() => searchInput?.focus());
 })();
+
+function renderReview() {
+  if (!reviewListEl || !tplReviewCard) return;
+  reviewListEl.replaceChildren();
+  updateReviewBadge();
+
+  const now = Date.now();
+  const due = dueCards(now);
+  const upcoming = Object.values(srMap)
+    .filter((c) => c && c.due > now)
+    .sort((a, b) => (a.due || 0) - (b.due || 0));
+
+  if (reviewStats) {
+    const total = Object.keys(srMap).length;
+    reviewStats.textContent = total
+      ? `${due.length} due · ${total} total`
+      : "";
+  }
+
+  if (!due.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    const wrap = tplEmpty.content.cloneNode(true);
+    wrap.querySelector(".empty-title").textContent = upcoming.length
+      ? "All caught up"
+      : "Nothing to review yet";
+    const nextDue = upcoming[0];
+    wrap.querySelector(".empty-hint").textContent = upcoming.length
+      ? `Next card due ${relativeDueLabel(nextDue.due)}.`
+      : "Bookmark a section with B to add it to the review queue.";
+    li.appendChild(wrap);
+    reviewListEl.appendChild(li);
+    return;
+  }
+
+  for (const [key, card] of due) {
+    const frag = tplReviewCard.content.cloneNode(true);
+    const li = frag.querySelector(".sr-card");
+    li.dataset.srKey = key;
+    const accent = accentFor(card.url);
+    li.style.setProperty("--site-accent", accent);
+    li.querySelector(".sr-title").textContent = card.text;
+    li.querySelector(".sr-site").textContent = siteLabelFor(card.url);
+    li.querySelector(".sr-path").textContent = prettyPath(card.url);
+    li.querySelector(".sr-due").textContent = card.reps
+      ? `rep ${card.reps} · ${card.intervalDays}d`
+      : "new";
+    li.querySelector(".sr-open").addEventListener("click", () => {
+      openBookmark(bookmarkUrl(card.url, card.id));
+    });
+    for (const btn of li.querySelectorAll(".sr-btn")) {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const grade = btn.dataset.grade;
+        if (grade) gradeCard(key, grade);
+      });
+    }
+    reviewListEl.appendChild(frag);
+  }
+}
+
+function accentFor(url) {
+  const id = (sites.find((s) => (s.hosts || []).some((h) => url.includes(h))) || {}).id;
+  const found = sites.find((s) => s.id === id);
+  return found?.accent || "#7aa2ff";
+}
+
+function relativeDueLabel(due) {
+  const diff = Math.max(0, (Number(due) || 0) - Date.now());
+  const m = Math.round(diff / 60000);
+  if (m < 60) return `in ${m || 1}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `in ${h}h`;
+  const d = Math.round(h / 24);
+  return `in ${d}d`;
+}
 
 function renderSites() {
   if (!siteListEl || !tplSiteRow) return;

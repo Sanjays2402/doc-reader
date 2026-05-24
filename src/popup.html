@@ -28,6 +28,16 @@
       </span>
       <div class="title" id="view-title">Doc Reader</div>
     </div>
+    <button id="review-btn" class="icon-btn" title="Review queue" aria-label="Spaced-repetition review queue">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v13.5"/>
+        <path d="M6.5 17.5A2.5 2.5 0 0 0 4 20V6.5"/>
+        <path d="M6.5 17.5H20V20H6.5A2.5 2.5 0 0 1 6.5 17.5Z"/>
+        <path d="m10.5 9.5 2 2 4-4"/>
+      </svg>
+      <span id="review-badge" class="badge" hidden aria-hidden="true">0</span>
+    </button>
     <button id="history-btn" class="icon-btn" title="Recently read" aria-label="Recently read history">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -72,6 +82,58 @@
     </div>
     <ul id="site-list" class="site-list"></ul>
   </section>
+
+  <section id="review-view" class="content review" aria-label="Spaced-repetition review queue" hidden>
+    <div class="review-head">
+      <div>
+        <h2 class="review-title">Review queue</h2>
+        <p class="review-hint">Recall the section, then rate how it felt. Cards reschedule via SM-2.</p>
+      </div>
+      <span id="review-stats" class="review-stats" aria-live="polite"></span>
+    </div>
+    <ul id="review-list" class="review-list"></ul>
+  </section>
+
+  <template id="tpl-review-card">
+    <li class="sr-card">
+      <div class="sr-meta">
+        <span class="sr-dot" aria-hidden="true"></span>
+        <div class="sr-text">
+          <button class="sr-open" type="button" title="Open section">
+            <span class="sr-title"></span>
+          </button>
+          <span class="sr-sub">
+            <span class="sr-site"></span>
+            <span class="sr-path"></span>
+          </span>
+        </div>
+        <span class="sr-due" title="Reps · interval"></span>
+      </div>
+      <div class="sr-actions" role="group" aria-label="Rate recall">
+        <button class="sr-btn sr-again" type="button" data-grade="again" title="Couldn't recall — show again soon">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+          </svg>
+          <span>Again</span>
+        </button>
+        <button class="sr-btn sr-good" type="button" data-grade="good" title="Recalled with effort">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m5 12 4 4 10-10"/>
+          </svg>
+          <span>Good</span>
+        </button>
+        <button class="sr-btn sr-easy" type="button" data-grade="easy" title="Easy — push out further">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>
+          </svg>
+          <span>Easy</span>
+        </button>
+      </div>
+    </li>
+  </template>
 
   <section id="history-view" class="content history" aria-label="Recently read docs" hidden>
     <div class="history-head">
