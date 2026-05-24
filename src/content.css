@@ -952,3 +952,154 @@ html.doc-reader-active [data-doc-reader-article="1"] a[data-doc-reader-xref="1"]
     content: "";
   }
 }
+
+/* ---- Inline glossary tooltips -------------------------------------------
+   Same-host technical terms are wrapped as <span data-doc-reader-glossary>
+   so a hover/focus tooltip can show a one-line definition. The tooltip
+   itself lives on documentElement and uses liquid-glass styling with an
+   accent arrow that anchors to the hovered term. */
+html.doc-reader-active [data-doc-reader-article="1"] span[data-doc-reader-glossary="1"] {
+  border-bottom: 1px dotted rgba(120, 140, 170, 0.55);
+  cursor: help;
+  transition: border-bottom-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              color 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active [data-doc-reader-article="1"] span[data-doc-reader-glossary="1"]:hover,
+html.doc-reader-active [data-doc-reader-article="1"] span[data-doc-reader-glossary="1"]:focus-visible {
+  border-bottom-color: var(--doc-reader-accent, #5aa6ff);
+  color: var(--doc-reader-accent, #5aa6ff);
+  outline: none;
+}
+
+.doc-reader-glossary-tooltip {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  z-index: 2147483646;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: #1b1f25;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 12px 32px rgba(15, 23, 42, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.08);
+  opacity: 0;
+  transform: translateY(2px) scale(0.985);
+  pointer-events: none;
+  transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.doc-reader-glossary-tooltip[data-open="1"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.doc-reader-glossary-tooltip[data-pos="below"] {
+  transform: translateY(-2px) scale(0.985);
+}
+.doc-reader-glossary-tooltip[data-pos="below"][data-open="1"] {
+  transform: translateY(0) scale(1);
+}
+.doc-reader-glossary-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.doc-reader-glossary-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--doc-reader-accent, #5aa6ff);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.doc-reader-glossary-label {
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: -0.005em;
+  color: #0f172a;
+}
+.doc-reader-glossary-body {
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.doc-reader-glossary-foot {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  color: #64748b;
+  font-size: 11.5px;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+.doc-reader-glossary-foot[data-empty="1"] {
+  display: none;
+}
+.doc-reader-glossary-arrow {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: inherit;
+  border-left: 1px solid rgba(255, 255, 255, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.doc-reader-glossary-arrow[data-pos="bottom"] {
+  bottom: -8px;
+  transform: rotate(225deg);
+}
+.doc-reader-glossary-arrow[data-pos="top"] {
+  top: -8px;
+}
+@media (prefers-color-scheme: dark) {
+  .doc-reader-glossary-tooltip {
+    color: #e6ebf2;
+    background: rgba(22, 27, 34, 0.78);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      0 12px 32px rgba(0, 0, 0, 0.45),
+      0 2px 6px rgba(0, 0, 0, 0.25);
+  }
+  .doc-reader-glossary-label { color: #f1f5f9; }
+  .doc-reader-glossary-body { color: #cbd5e1; }
+  .doc-reader-glossary-foot {
+    color: #94a3b8;
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+  .doc-reader-glossary-arrow {
+    border-left-color: rgba(255, 255, 255, 0.08);
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+}
+html.doc-reader-theme-dark .doc-reader-glossary-tooltip,
+html[data-doc-reader-theme="dark"] .doc-reader-glossary-tooltip {
+  color: #e6ebf2;
+  background: rgba(22, 27, 34, 0.78);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+}
+@media print {
+  .doc-reader-glossary-tooltip { display: none !important; }
+  html.doc-reader-active [data-doc-reader-article="1"] span[data-doc-reader-glossary="1"] {
+    border-bottom: none;
+  }
+}

@@ -154,6 +154,55 @@
   });
   const XREF_LIMIT_PER_TERM = 2; // avoid noisy pages: max 2 links per term
   const XREF_MIN_TEXT_LEN = 8;   // skip tiny text nodes (probably labels)
+  // ---- Glossary: short definitions for hover tooltips -------------------
+  // Each key matches a key in XREFS (1:1). The body is a single sentence,
+  // plain text, no markup. Used by the inline glossary tooltip — see
+  // showGlossaryTooltip / ensureXrefLinks. Same-host terms still get a
+  // <span data-doc-reader-glossary="1"> wrapper so users learn the term
+  // even when we suppress the outbound link.
+  const GLOSSARY = Object.freeze({
+    "useState":            "React Hook that returns a stateful value and a setter to update it.",
+    "useEffect":           "React Hook for running side effects after render — fetching, subscriptions, DOM updates.",
+    "useMemo":              "Memoizes an expensive computed value so it only recalculates when its dependencies change.",
+    "useCallback":          "Returns a memoized callback identity that only changes when its dependencies change.",
+    "useRef":               "Holds a mutable .current value that persists across renders without triggering re-renders.",
+    "useContext":           "Reads the current value of a React Context provided higher in the tree.",
+    "useReducer":           "State Hook driven by a reducer function — like useState for complex transitions.",
+    "useTransition":        "Marks a state update as non-urgent so the UI stays responsive during heavy renders.",
+    "useDeferredValue":     "Lets a value lag behind during urgent updates so expensive children can rerender lazily.",
+    "useLayoutEffect":      "Like useEffect but fires synchronously after DOM mutations, before the browser paints.",
+    "useSyncExternalStore": "Subscribes a component to an external store with tearing-free, concurrent-safe semantics.",
+    "useId":                "Generates a stable unique id usable for accessibility attributes across server and client.",
+    "Suspense":             "React boundary that shows a fallback UI while descendants wait for data or code.",
+    "createContext":        "Creates a Context object — pair with a Provider to pass values through the tree.",
+    "forwardRef":           "Wraps a component so a parent can forward a ref to a child DOM node or imperative handle.",
+    "memo":                 "Higher-order component that skips re-renders when props are shallow-equal.",
+    "lazy":                 "Defers loading a component's code until it's first rendered — pairs with Suspense.",
+    "getServerSideProps":   "Next.js Pages Router function that runs on every request to fetch props on the server.",
+    "getStaticProps":       "Next.js Pages Router function that fetches props at build time for static generation.",
+    "getStaticPaths":       "Declares which dynamic routes Next.js should pre-render at build time.",
+    "App Router":           "Next.js routing system built on React Server Components, layouts, and the app/ directory.",
+    "Pages Router":         "Next.js's original file-based router living under pages/ with getServerSideProps etc.",
+    "Server Component":     "A React component that renders on the server only — no client JS, can fetch directly.",
+    "Server Components":    "React components that render on the server only — no client JS, can fetch directly.",
+    "Client Component":     "A React component marked 'use client' that hydrates and runs in the browser.",
+    "Client Components":    "React components marked 'use client' that hydrate and run in the browser.",
+    "middleware":           "Next.js code that runs before a request completes — for redirects, auth, rewrites at the edge.",
+    "Promise":              "Object representing the eventual completion (or failure) of an async operation.",
+    "fetch":                "Browser API for making HTTP requests that returns a Promise resolving to a Response.",
+    "async":                "Function modifier that makes the function return a Promise and enables await inside it.",
+    "await":                "Pauses execution of an async function until the awaited Promise settles.",
+    "AbortController":      "Lets you cancel in-flight fetch requests (or any abortable task) via an AbortSignal.",
+    "IntersectionObserver": "Async API that reports when target elements cross a viewport or ancestor threshold.",
+    "MutationObserver":     "Watches a DOM subtree and fires callbacks when nodes, attributes, or text change.",
+    "ResizeObserver":       "Reports size changes for observed elements without polling or relying on window resize.",
+    "localStorage":         "Per-origin key/value storage that survives across sessions — string values only.",
+    "sessionStorage":       "Per-origin key/value storage scoped to the current browser tab session.",
+  });
+  const GLOSSARY_ATTR = "data-doc-reader-glossary";
+  const GLOSSARY_TERM_ATTR = "data-doc-reader-glossary-term";
+  const GLOSSARY_OPEN_DELAY = 220;
+  const GLOSSARY_CLOSE_DELAY = 140;
   const SEARCH_ATTR = "data-doc-reader-search";
   const SEARCH_ID_ATTR = "data-doc-reader-search-id";
   const SEARCH_CURRENT_ATTR = "data-current";
@@ -2731,7 +2780,7 @@
           tag === "SCRIPT" || tag === "STYLE" || tag === "TEXTAREA" || tag === "INPUT") {
         return true;
       }
-      if (p.hasAttribute && (p.hasAttribute(XREF_ATTR) || isReaderInjectedNode(p))) return true;
+      if (p.hasAttribute && (p.hasAttribute(XREF_ATTR) || p.hasAttribute(GLOSSARY_ATTR) || isReaderInjectedNode(p))) return true;
     }
     return false;
   }
@@ -2778,14 +2827,9 @@
         const entry = XREFS[term];
         if (!entry) break;
         // Don't link to the page's own host (the user is already there).
-        if (xrefHostFor(entry.url) === ownHost) {
-          // Skip ahead past this match and keep scanning the rest.
-          currentText = currentText.slice(match.index + match.length);
-          current = current.splitText(match.index + match.length);
-          continue;
-        }
+        const sameHost = xrefHostFor(entry.url) === ownHost;
         const used = counts.get(term) || 0;
-        if (used >= XREF_LIMIT_PER_TERM) {
+        if (!sameHost && used >= XREF_LIMIT_PER_TERM) {
           currentText = currentText.slice(match.index + match.length);
           current = current.splitText(match.index + match.length);
           continue;
@@ -2794,17 +2838,40 @@
         // the after-portion to scan further.
         const after = current.splitText(match.index + match.length);
         const matched = current.splitText(match.index);
-        // matched is its own text node now; replace with an anchor.
-        const a = document.createElement("a");
-        a.setAttribute(XREF_ATTR, "1");
-        a.setAttribute(XREF_SOURCE_ATTR, entry.source);
-        a.setAttribute("href", entry.url);
-        a.setAttribute("target", "_blank");
-        a.setAttribute("rel", "noopener noreferrer");
-        a.setAttribute("title", entry.label);
-        a.textContent = match.matched;
-        matched.parentNode.replaceChild(a, matched);
-        counts.set(term, used + 1);
+        const def = GLOSSARY[term] || "";
+        let wrapper;
+        if (sameHost) {
+          // Don't link to the page's own host (the user is already there)
+          // but still wrap the term so the glossary tooltip can fire.
+          if (!def) {
+            currentText = after.nodeValue || "";
+            current = after;
+            if (!currentText) break;
+            continue;
+          }
+          wrapper = document.createElement("span");
+          wrapper.setAttribute(GLOSSARY_ATTR, "1");
+          wrapper.setAttribute(GLOSSARY_TERM_ATTR, term);
+          wrapper.setAttribute("tabindex", "0");
+          wrapper.setAttribute("role", "button");
+          wrapper.setAttribute("aria-label", `${entry.label}: ${def}`);
+          wrapper.textContent = match.matched;
+        } else {
+          wrapper = document.createElement("a");
+          wrapper.setAttribute(XREF_ATTR, "1");
+          wrapper.setAttribute(XREF_SOURCE_ATTR, entry.source);
+          wrapper.setAttribute("href", entry.url);
+          wrapper.setAttribute("target", "_blank");
+          wrapper.setAttribute("rel", "noopener noreferrer");
+          wrapper.setAttribute("title", entry.label);
+          wrapper.textContent = match.matched;
+          if (def) {
+            wrapper.setAttribute(GLOSSARY_ATTR, "1");
+            wrapper.setAttribute(GLOSSARY_TERM_ATTR, term);
+          }
+          counts.set(term, used + 1);
+        }
+        matched.parentNode.replaceChild(wrapper, matched);
         current = after;
         currentText = after.nodeValue || "";
         if (!currentText) break;
@@ -2814,8 +2881,13 @@
 
   function removeXrefLinks() {
     if (!articleEl) return;
+    hideGlossaryTooltip(true);
     let links;
-    try { links = articleEl.querySelectorAll(`a[${XREF_ATTR}="1"]`); } catch { return; }
+    try {
+      links = articleEl.querySelectorAll(
+        `a[${XREF_ATTR}="1"], span[${GLOSSARY_ATTR}="1"]`
+      );
+    } catch { return; }
     for (const a of links) {
       const parent = a.parentNode;
       if (!parent) continue;
@@ -2823,6 +2895,196 @@
       parent.normalize?.();
     }
   }
+
+  // ---- Inline glossary tooltips -----------------------------------------
+  // Hovering (or focusing) any node tagged with data-doc-reader-glossary="1"
+  // pops a liquid-glass card with a one-line definition pulled from GLOSSARY.
+  // The tooltip lives directly on documentElement so it can escape clipped
+  // ancestors; positioning is recomputed against the target's bounding box.
+  let glossaryTooltipEl = null;
+  let glossaryTooltipTarget = null;
+  let glossaryOpenTimer = 0;
+  let glossaryCloseTimer = 0;
+  let glossaryListenersBound = false;
+
+  function buildGlossaryTooltip() {
+    if (glossaryTooltipEl) return glossaryTooltipEl;
+    const el = document.createElement("div");
+    el.className = "doc-reader-glossary-tooltip";
+    el.setAttribute("role", "tooltip");
+    el.setAttribute("aria-hidden", "true");
+    el.innerHTML = `
+      <div class="doc-reader-glossary-arrow" aria-hidden="true"></div>
+      <div class="doc-reader-glossary-head">
+        <svg class="doc-reader-glossary-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 5h11a3 3 0 0 1 3 3v11a0 0 0 0 1 0 0H8a3 3 0 0 1-3-3V5z" />
+          <path d="M9 9h6" />
+          <path d="M9 13h6" />
+          <path d="M9 17h3" />
+        </svg>
+        <span class="doc-reader-glossary-label" data-doc-reader-glossary-label></span>
+      </div>
+      <div class="doc-reader-glossary-body" data-doc-reader-glossary-body></div>
+      <div class="doc-reader-glossary-foot" data-doc-reader-glossary-foot></div>
+    `;
+    // Keep the tooltip alive while pointer is over it.
+    el.addEventListener("pointerenter", () => {
+      if (glossaryCloseTimer) { clearTimeout(glossaryCloseTimer); glossaryCloseTimer = 0; }
+    });
+    el.addEventListener("pointerleave", () => {
+      scheduleHideGlossaryTooltip();
+    });
+    document.documentElement.appendChild(el);
+    glossaryTooltipEl = el;
+    return el;
+  }
+
+  function positionGlossaryTooltip(target) {
+    const tip = glossaryTooltipEl;
+    if (!tip || !target || !target.isConnected) return;
+    // Reset to measure natural width.
+    tip.style.left = "-9999px";
+    tip.style.top = "-9999px";
+    tip.style.maxWidth = "min(360px, calc(100vw - 24px))";
+    const rect = target.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const margin = 8;
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+    // Prefer above; fall back to below if there isn't room.
+    let placeAbove = rect.top >= tipRect.height + margin + 4;
+    let top = placeAbove
+      ? rect.top - tipRect.height - margin
+      : rect.bottom + margin;
+    // Horizontal: anchor arrow to target center, keep tooltip in viewport.
+    const targetCenter = rect.left + rect.width / 2;
+    let left = targetCenter - tipRect.width / 2;
+    left = Math.max(margin, Math.min(left, vw - tipRect.width - margin));
+    top = Math.max(margin, Math.min(top, vh - tipRect.height - margin));
+    const arrow = tip.querySelector(".doc-reader-glossary-arrow");
+    if (arrow) {
+      const arrowX = Math.max(14, Math.min(targetCenter - left, tipRect.width - 14));
+      arrow.style.left = `${arrowX}px`;
+      arrow.setAttribute("data-pos", placeAbove ? "bottom" : "top");
+    }
+    tip.setAttribute("data-pos", placeAbove ? "above" : "below");
+    tip.style.left = `${Math.round(left + window.scrollX)}px`;
+    tip.style.top = `${Math.round(top + window.scrollY)}px`;
+  }
+
+  function showGlossaryTooltip(target) {
+    if (!target || !target.isConnected) return;
+    const term = target.getAttribute(GLOSSARY_TERM_ATTR);
+    const def = term ? GLOSSARY[term] : "";
+    if (!def) return;
+    const tip = buildGlossaryTooltip();
+    const entry = XREFS[term];
+    const labelEl = tip.querySelector("[data-doc-reader-glossary-label]");
+    const bodyEl = tip.querySelector("[data-doc-reader-glossary-body]");
+    const footEl = tip.querySelector("[data-doc-reader-glossary-foot]");
+    if (labelEl) labelEl.textContent = term;
+    if (bodyEl) bodyEl.textContent = def;
+    if (footEl) {
+      footEl.textContent = entry ? entry.label : "";
+      footEl.setAttribute("data-empty", entry ? "0" : "1");
+    }
+    glossaryTooltipTarget = target;
+    tip.setAttribute("aria-hidden", "false");
+    tip.setAttribute("data-open", "1");
+    // Force layout, then position.
+    positionGlossaryTooltip(target);
+    // Reposition once on next frame in case fonts/layout shifted.
+    requestAnimationFrame(() => positionGlossaryTooltip(target));
+  }
+
+  function hideGlossaryTooltip(immediate = false) {
+    if (glossaryOpenTimer) { clearTimeout(glossaryOpenTimer); glossaryOpenTimer = 0; }
+    if (glossaryCloseTimer) { clearTimeout(glossaryCloseTimer); glossaryCloseTimer = 0; }
+    glossaryTooltipTarget = null;
+    if (!glossaryTooltipEl) return;
+    glossaryTooltipEl.removeAttribute("data-open");
+    glossaryTooltipEl.setAttribute("aria-hidden", "true");
+    if (immediate) {
+      glossaryTooltipEl.style.left = "-9999px";
+      glossaryTooltipEl.style.top = "-9999px";
+    }
+  }
+
+  function scheduleHideGlossaryTooltip() {
+    if (glossaryCloseTimer) clearTimeout(glossaryCloseTimer);
+    glossaryCloseTimer = setTimeout(() => {
+      glossaryCloseTimer = 0;
+      hideGlossaryTooltip();
+    }, GLOSSARY_CLOSE_DELAY);
+  }
+
+  function findGlossaryTarget(node) {
+    if (!node) return null;
+    const el = node.nodeType === 1 ? node : node.parentElement;
+    if (!el) return null;
+    return el.closest(`[${GLOSSARY_ATTR}="1"]`);
+  }
+
+  function onGlossaryPointerOver(e) {
+    const target = findGlossaryTarget(e.target);
+    if (!target || !articleEl || !articleEl.contains(target)) return;
+    if (glossaryCloseTimer) { clearTimeout(glossaryCloseTimer); glossaryCloseTimer = 0; }
+    if (glossaryTooltipTarget === target) return;
+    if (glossaryOpenTimer) clearTimeout(glossaryOpenTimer);
+    glossaryOpenTimer = setTimeout(() => {
+      glossaryOpenTimer = 0;
+      showGlossaryTooltip(target);
+    }, GLOSSARY_OPEN_DELAY);
+  }
+
+  function onGlossaryPointerOut(e) {
+    const from = findGlossaryTarget(e.target);
+    if (!from) return;
+    const to = e.relatedTarget && findGlossaryTarget(e.relatedTarget);
+    if (to === from) return;
+    // If the pointer moved into the tooltip itself, let it handle closing.
+    if (glossaryTooltipEl && e.relatedTarget && glossaryTooltipEl.contains(e.relatedTarget)) return;
+    if (glossaryOpenTimer) { clearTimeout(glossaryOpenTimer); glossaryOpenTimer = 0; }
+    scheduleHideGlossaryTooltip();
+  }
+
+  function onGlossaryFocusIn(e) {
+    const target = findGlossaryTarget(e.target);
+    if (!target) return;
+    if (glossaryCloseTimer) { clearTimeout(glossaryCloseTimer); glossaryCloseTimer = 0; }
+    showGlossaryTooltip(target);
+  }
+
+  function onGlossaryFocusOut(e) {
+    const from = findGlossaryTarget(e.target);
+    if (!from) return;
+    scheduleHideGlossaryTooltip();
+  }
+
+  function onGlossaryKey(e) {
+    if (e.key !== "Escape") return;
+    if (!glossaryTooltipTarget) return;
+    hideGlossaryTooltip(true);
+  }
+
+  function onGlossaryReposition() {
+    if (glossaryTooltipTarget && glossaryTooltipEl?.hasAttribute("data-open")) {
+      positionGlossaryTooltip(glossaryTooltipTarget);
+    }
+  }
+
+  function bindGlossaryListeners() {
+    if (glossaryListenersBound) return;
+    document.addEventListener("pointerover", onGlossaryPointerOver, true);
+    document.addEventListener("pointerout", onGlossaryPointerOut, true);
+    document.addEventListener("focusin", onGlossaryFocusIn, true);
+    document.addEventListener("focusout", onGlossaryFocusOut, true);
+    document.addEventListener("keydown", onGlossaryKey, true);
+    window.addEventListener("scroll", onGlossaryReposition, true);
+    window.addEventListener("resize", onGlossaryReposition, true);
+    glossaryListenersBound = true;
+  }
+  bindGlossaryListeners();
 
   // ---- Highlight tool (4 colors, persisted per URL) ----------------------
   // User selects text in the article, palette appears near the selection,
