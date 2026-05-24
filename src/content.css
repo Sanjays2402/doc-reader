@@ -916,3 +916,39 @@ html.doc-reader-active[data-doc-reader-theme="dark"] [data-doc-reader-article="1
     margin: 16mm 14mm;
   }
 }
+
+/* ---- Auto-linked cross-references ---------------------------------------
+   Inline anchors injected into article text by the xref pass. Visually they
+   should read as part of the prose — a thin dotted underline + accent ink
+   on hover. The little outbound arrow ::after is rendered as an inline
+   SVG-style glyph so it doesn't depend on icon fonts. */
+html.doc-reader-active [data-doc-reader-article="1"] a[data-doc-reader-xref="1"] {
+  color: inherit;
+  text-decoration: underline dotted rgba(120, 140, 170, 0.55);
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  transition: color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              text-decoration-color 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.doc-reader-active [data-doc-reader-article="1"] a[data-doc-reader-xref="1"]:hover,
+html.doc-reader-active [data-doc-reader-article="1"] a[data-doc-reader-xref="1"]:focus-visible {
+  color: var(--doc-reader-accent, #5aa6ff);
+  text-decoration-color: currentColor;
+  text-decoration-style: solid;
+  outline: none;
+}
+html.doc-reader-active [data-doc-reader-article="1"] a[data-doc-reader-xref="1"]::after {
+  content: " \2197"; /* north-east arrow */
+  font-size: 0.78em;
+  vertical-align: 0.18em;
+  opacity: 0.55;
+  margin-left: 1px;
+}
+html.doc-reader-active [data-doc-reader-article="1"] a[data-doc-reader-xref="1"]:hover::after {
+  opacity: 1;
+}
+@media print {
+  html.doc-reader-active [data-doc-reader-article="1"] a[data-doc-reader-xref="1"]::after {
+    content: "";
+  }
+}

@@ -34,6 +34,6 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Mini-map scrollbar showing headings + highlights
 - [x] Vim-style keyboard navigation (j/k/gg/G)
 - [x] Spaced-repetition queue for bookmarked sections
-- [ ] Auto-link cross-references between MDN/React/Next.js terms
+- [x] Auto-link cross-references between MDN/React/Next.js terms
 - [ ] Inline glossary tooltips for technical terms on hover
 - [ ] Custom CSS injection panel (per-site overrides)

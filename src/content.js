@@ -103,6 +103,57 @@
   const COLLAPSED_ATTR = "data-doc-reader-collapsed";
   const TOGGLE_ATTR = "data-doc-reader-section-toggle";
   const IMG_ATTR = "data-doc-reader-img";
+  const XREF_ATTR = "data-doc-reader-xref";
+  const XREF_SOURCE_ATTR = "data-doc-reader-xref-source";
+  // Cross-reference dictionary: technical terms that, when seen in body
+  // copy of one supported site, auto-link to their canonical doc page on
+  // another. Keys are matched as whole tokens (case-sensitive for symbols
+  // like `useEffect`, case-insensitive for prose like "Server Component").
+  // Each entry: { url, source: site.id, label, ci?: boolean }
+  const XREFS = Object.freeze({
+    // React APIs -> react.dev
+    "useState":         { url: "https://react.dev/reference/react/useState",         source: "react", label: "React: useState" },
+    "useEffect":        { url: "https://react.dev/reference/react/useEffect",        source: "react", label: "React: useEffect" },
+    "useMemo":          { url: "https://react.dev/reference/react/useMemo",          source: "react", label: "React: useMemo" },
+    "useCallback":      { url: "https://react.dev/reference/react/useCallback",      source: "react", label: "React: useCallback" },
+    "useRef":           { url: "https://react.dev/reference/react/useRef",           source: "react", label: "React: useRef" },
+    "useContext":       { url: "https://react.dev/reference/react/useContext",       source: "react", label: "React: useContext" },
+    "useReducer":       { url: "https://react.dev/reference/react/useReducer",       source: "react", label: "React: useReducer" },
+    "useTransition":    { url: "https://react.dev/reference/react/useTransition",    source: "react", label: "React: useTransition" },
+    "useDeferredValue": { url: "https://react.dev/reference/react/useDeferredValue", source: "react", label: "React: useDeferredValue" },
+    "useLayoutEffect":  { url: "https://react.dev/reference/react/useLayoutEffect",  source: "react", label: "React: useLayoutEffect" },
+    "useSyncExternalStore": { url: "https://react.dev/reference/react/useSyncExternalStore", source: "react", label: "React: useSyncExternalStore" },
+    "useId":            { url: "https://react.dev/reference/react/useId",            source: "react", label: "React: useId" },
+    "Suspense":         { url: "https://react.dev/reference/react/Suspense",         source: "react", label: "React: Suspense" },
+    "createContext":    { url: "https://react.dev/reference/react/createContext",    source: "react", label: "React: createContext" },
+    "forwardRef":       { url: "https://react.dev/reference/react/forwardRef",       source: "react", label: "React: forwardRef" },
+    "memo":             { url: "https://react.dev/reference/react/memo",             source: "react", label: "React: memo" },
+    "lazy":             { url: "https://react.dev/reference/react/lazy",             source: "react", label: "React: lazy" },
+    // Next.js concepts -> nextjs.org
+    "getServerSideProps": { url: "https://nextjs.org/docs/pages/api-reference/functions/get-server-side-props", source: "nextjs", label: "Next.js: getServerSideProps" },
+    "getStaticProps":     { url: "https://nextjs.org/docs/pages/api-reference/functions/get-static-props",     source: "nextjs", label: "Next.js: getStaticProps" },
+    "getStaticPaths":     { url: "https://nextjs.org/docs/pages/api-reference/functions/get-static-paths",     source: "nextjs", label: "Next.js: getStaticPaths" },
+    "App Router":         { url: "https://nextjs.org/docs/app",          source: "nextjs", label: "Next.js: App Router", ci: true },
+    "Pages Router":       { url: "https://nextjs.org/docs/pages",        source: "nextjs", label: "Next.js: Pages Router", ci: true },
+    "Server Component":   { url: "https://nextjs.org/docs/app/building-your-application/rendering/server-components", source: "nextjs", label: "Next.js: Server Components", ci: true },
+    "Server Components":  { url: "https://nextjs.org/docs/app/building-your-application/rendering/server-components", source: "nextjs", label: "Next.js: Server Components", ci: true },
+    "Client Component":   { url: "https://nextjs.org/docs/app/building-your-application/rendering/client-components", source: "nextjs", label: "Next.js: Client Components", ci: true },
+    "Client Components":  { url: "https://nextjs.org/docs/app/building-your-application/rendering/client-components", source: "nextjs", label: "Next.js: Client Components", ci: true },
+    "middleware":         { url: "https://nextjs.org/docs/app/building-your-application/routing/middleware", source: "nextjs", label: "Next.js: Middleware", ci: true },
+    // MDN web platform APIs -> developer.mozilla.org
+    "Promise":          { url: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise", source: "mdn", label: "MDN: Promise" },
+    "fetch":            { url: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",                  source: "mdn", label: "MDN: fetch" },
+    "async":            { url: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function", source: "mdn", label: "MDN: async function" },
+    "await":            { url: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/await",       source: "mdn", label: "MDN: await" },
+    "AbortController":  { url: "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",                        source: "mdn", label: "MDN: AbortController" },
+    "IntersectionObserver": { url: "https://developer.mozilla.org/en-US/docs/Web/API/IntersectionObserver",               source: "mdn", label: "MDN: IntersectionObserver" },
+    "MutationObserver": { url: "https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver",                       source: "mdn", label: "MDN: MutationObserver" },
+    "ResizeObserver":   { url: "https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver",                         source: "mdn", label: "MDN: ResizeObserver" },
+    "localStorage":     { url: "https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage",                    source: "mdn", label: "MDN: localStorage" },
+    "sessionStorage":   { url: "https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage",                  source: "mdn", label: "MDN: sessionStorage" },
+  });
+  const XREF_LIMIT_PER_TERM = 2; // avoid noisy pages: max 2 links per term
+  const XREF_MIN_TEXT_LEN = 8;   // skip tiny text nodes (probably labels)
   const SEARCH_ATTR = "data-doc-reader-search";
   const SEARCH_ID_ATTR = "data-doc-reader-search-id";
   const SEARCH_CURRENT_ATTR = "data-current";
@@ -1961,12 +2012,14 @@
     ensureCopyButtons();
     ensureImageEnhancements();
     ensureSectionToggles();
+    ensureXrefLinks();
   }
 
   function restoreSingleColumn() {
     removeReadingMeta();
     removeCopyButtons();
     removeSectionToggles();
+    removeXrefLinks();
     if (articleEl) {
       try { articleEl.removeAttribute(ARTICLE_ATTR); } catch { /* detached */ }
       articleEl = null;
@@ -2419,6 +2472,7 @@
     ensureCopyButtons();
     ensureImageEnhancements();
     ensureSectionToggles();
+    ensureXrefLinks();
   }
 
   // ---- Section-collapse toggles on h2 headings ---------------------------
@@ -2634,6 +2688,139 @@
     }, { rootMargin: "-72px 0px -60% 0px", threshold: [0, 1] });
     for (const e of entries) {
       try { tocIO.observe(e.el); } catch {}
+    }
+  }
+
+  // ---- Auto-link cross-references --------------------------------------
+  // Scans the article's text nodes and wraps the first few occurrences of
+  // known technical terms (React hooks, Next.js concepts, MDN web APIs) in
+  // an <a> pointing at the canonical doc. Skips terms that link to the
+  // page's own site, skips text inside headings/code/links/our own UI.
+  let xrefCompiled = null;
+  function compileXrefs() {
+    if (xrefCompiled) return xrefCompiled;
+    const ciTerms = [];
+    const csTerms = [];
+    for (const [term, entry] of Object.entries(XREFS)) {
+      if (entry.ci) ciTerms.push(term);
+      else csTerms.push(term);
+    }
+    // Sort longest-first so "Server Components" wins over "Server Component".
+    ciTerms.sort((a, b) => b.length - a.length);
+    csTerms.sort((a, b) => b.length - a.length);
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Word boundary differs by category: identifiers use \b, prose phrases
+    // use lookarounds against word chars so multi-word terms still match.
+    const csRe = csTerms.length ? new RegExp("\\b(?:" + csTerms.map(esc).join("|") + ")\\b") : null;
+    const ciRe = ciTerms.length ? new RegExp("(?<![A-Za-z0-9_])(?:" + ciTerms.map(esc).join("|") + ")(?![A-Za-z0-9_])", "i") : null;
+    xrefCompiled = { csRe, ciRe, csTerms, ciTerms };
+    return xrefCompiled;
+  }
+
+  function xrefHostFor(url) {
+    try { return new URL(url).hostname; } catch { return ""; }
+  }
+
+  function xrefSkipNode(node) {
+    for (let p = node.parentNode; p && p !== articleEl; p = p.parentNode) {
+      if (p.nodeType !== 1) continue;
+      const tag = p.tagName;
+      if (tag === "A" || tag === "CODE" || tag === "PRE" || tag === "KBD" ||
+          tag === "SAMP" || tag === "H1" || tag === "H2" || tag === "H3" ||
+          tag === "H4" || tag === "H5" || tag === "H6" || tag === "BUTTON" ||
+          tag === "SCRIPT" || tag === "STYLE" || tag === "TEXTAREA" || tag === "INPUT") {
+        return true;
+      }
+      if (p.hasAttribute && (p.hasAttribute(XREF_ATTR) || isReaderInjectedNode(p))) return true;
+    }
+    return false;
+  }
+
+  function ensureXrefLinks() {
+    if (!articleEl || !state.enabled) return;
+    const { csRe, ciRe } = compileXrefs();
+    const ownHost = location.hostname;
+    const counts = new Map(); // term -> count placed so far
+    const walker = document.createTreeWalker(articleEl, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue || node.nodeValue.length < XREF_MIN_TEXT_LEN) return NodeFilter.FILTER_REJECT;
+        if (xrefSkipNode(node)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const candidates = [];
+    let n;
+    while ((n = walker.nextNode())) candidates.push(n);
+    for (const textNode of candidates) {
+      let text = textNode.nodeValue;
+      // Find best match across both regexes per pass; keep splitting the
+      // node so subsequent matches in the same text still get a chance.
+      let current = textNode;
+      let currentText = text;
+      // Hard cap per node to avoid pathological pages.
+      for (let i = 0; i < 4; i++) {
+        let match = null;
+        let term = null;
+        if (csRe) {
+          const m = csRe.exec(currentText);
+          if (m) { match = { index: m.index, length: m[0].length, matched: m[0] }; term = m[0]; }
+        }
+        if (ciRe) {
+          const m = ciRe.exec(currentText);
+          if (m && (!match || m.index < match.index)) {
+            match = { index: m.index, length: m[0].length, matched: m[0] };
+            // Find the dictionary key (case-insensitive) that produced it.
+            const lower = m[0].toLowerCase();
+            term = Object.keys(XREFS).find((k) => XREFS[k].ci && k.toLowerCase() === lower) || null;
+          }
+        }
+        if (!match || !term) break;
+        const entry = XREFS[term];
+        if (!entry) break;
+        // Don't link to the page's own host (the user is already there).
+        if (xrefHostFor(entry.url) === ownHost) {
+          // Skip ahead past this match and keep scanning the rest.
+          currentText = currentText.slice(match.index + match.length);
+          current = current.splitText(match.index + match.length);
+          continue;
+        }
+        const used = counts.get(term) || 0;
+        if (used >= XREF_LIMIT_PER_TERM) {
+          currentText = currentText.slice(match.index + match.length);
+          current = current.splitText(match.index + match.length);
+          continue;
+        }
+        // Split: before | matchedNode | after; we keep `current` pointing at
+        // the after-portion to scan further.
+        const after = current.splitText(match.index + match.length);
+        const matched = current.splitText(match.index);
+        // matched is its own text node now; replace with an anchor.
+        const a = document.createElement("a");
+        a.setAttribute(XREF_ATTR, "1");
+        a.setAttribute(XREF_SOURCE_ATTR, entry.source);
+        a.setAttribute("href", entry.url);
+        a.setAttribute("target", "_blank");
+        a.setAttribute("rel", "noopener noreferrer");
+        a.setAttribute("title", entry.label);
+        a.textContent = match.matched;
+        matched.parentNode.replaceChild(a, matched);
+        counts.set(term, used + 1);
+        current = after;
+        currentText = after.nodeValue || "";
+        if (!currentText) break;
+      }
+    }
+  }
+
+  function removeXrefLinks() {
+    if (!articleEl) return;
+    let links;
+    try { links = articleEl.querySelectorAll(`a[${XREF_ATTR}="1"]`); } catch { return; }
+    for (const a of links) {
+      const parent = a.parentNode;
+      if (!parent) continue;
+      parent.replaceChild(document.createTextNode(a.textContent || ""), a);
+      parent.normalize?.();
     }
   }
 
