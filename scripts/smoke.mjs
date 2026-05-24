@@ -96,6 +96,12 @@ for (const needle of [
   "mirrorToSync",
   "chrome.storage.sync",
   "SYNCED_KEYS",
+  "minimap",
+  "buildMinimap",
+  "minimap-tick",
+  "minimap-hl",
+  "minimap-viewport",
+  "updateMinimapViewport",
 ]) {
   if (!contentSrc.includes(needle)) {
     console.error("content.js missing reader-toggle token:", needle);

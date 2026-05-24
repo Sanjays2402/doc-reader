@@ -446,6 +446,109 @@
       @media (max-width: 1100px) {
         .toc { display: none; }
       }
+      .minimap {
+        position: fixed;
+        top: 64px;
+        right: 18px;
+        width: 18px;
+        max-height: calc(100vh - 96px);
+        height: calc(100vh - 96px);
+        pointer-events: auto;
+        background: linear-gradient(180deg, rgba(22,22,28,0.42), rgba(14,14,18,0.34));
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        box-shadow:
+          0 14px 36px rgba(0,0,0,0.30),
+          inset 0 1px 0 rgba(255,255,255,0.05);
+        backdrop-filter: blur(18px) saturate(140%);
+        -webkit-backdrop-filter: blur(18px) saturate(140%);
+        opacity: 0;
+        transform: translateX(6px);
+        transition:
+          opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        overflow: hidden;
+        cursor: pointer;
+        z-index: 2;
+      }
+      .minimap[data-visible="1"] { opacity: 1; transform: translateX(0); }
+      .minimap::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(closest-side at 50% 30%, ${accent}1f, transparent 70%);
+        pointer-events: none;
+      }
+      .minimap-track {
+        position: absolute;
+        inset: 6px 4px;
+        pointer-events: none;
+      }
+      .minimap-tick {
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        height: 2px;
+        border-radius: 2px;
+        background: rgba(245,245,247,0.34);
+        pointer-events: none;
+        transition: background 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .minimap-tick[data-level="2"] {
+        background: rgba(245,245,247,0.62);
+        left: 1px;
+        right: 1px;
+        height: 2px;
+      }
+      .minimap-tick[data-active="1"] {
+        background: ${accent};
+        box-shadow: 0 0 6px ${accent}99;
+      }
+      .minimap-hl {
+        position: absolute;
+        left: -1px;
+        right: -1px;
+        height: 3px;
+        border-radius: 999px;
+        opacity: 0.92;
+        pointer-events: none;
+      }
+      .minimap-hl[data-color="yellow"] { background: #ffd86b; box-shadow: 0 0 6px rgba(255,216,107,0.6); }
+      .minimap-hl[data-color="mint"]   { background: #9be7c0; box-shadow: 0 0 6px rgba(155,231,192,0.6); }
+      .minimap-hl[data-color="sky"]    { background: #9cc9ff; box-shadow: 0 0 6px rgba(156,201,255,0.6); }
+      .minimap-hl[data-color="pink"]   { background: #ffb0c8; box-shadow: 0 0 6px rgba(255,176,200,0.6); }
+      .minimap-viewport {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 0;
+        background: rgba(255,255,255,0.10);
+        border-top: 1px solid rgba(255,255,255,0.18);
+        border-bottom: 1px solid rgba(255,255,255,0.18);
+        border-radius: 4px;
+        pointer-events: none;
+        transition: top 120ms cubic-bezier(0.16, 1, 0.3, 1), height 120ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      [data-doc-reader-theme="light"] .minimap {
+        background: linear-gradient(180deg, rgba(255,255,255,0.66), rgba(248,248,250,0.58));
+        border-color: rgba(0,0,0,0.08);
+        box-shadow:
+          0 14px 36px rgba(0,0,0,0.10),
+          inset 0 1px 0 rgba(255,255,255,0.6);
+      }
+      [data-doc-reader-theme="light"] .minimap-tick { background: rgba(20,20,24,0.32); }
+      [data-doc-reader-theme="light"] .minimap-tick[data-level="2"] { background: rgba(20,20,24,0.55); }
+      [data-doc-reader-theme="light"] .minimap-viewport {
+        background: rgba(20,20,24,0.06);
+        border-color: rgba(20,20,24,0.18);
+      }
+      @media (max-width: 1100px) {
+        .minimap { display: none; }
+      }
+      @media print {
+        .minimap { display: none !important; }
+      }
       .pill {
         position: fixed;
         top: 16px;
@@ -1570,6 +1673,17 @@
     `;
     shadow.appendChild(lightbox);
 
+    const minimap = document.createElement("aside");
+    minimap.className = "minimap";
+    minimap.setAttribute("aria-label", "Document mini-map");
+    minimap.setAttribute("role", "navigation");
+    minimap.innerHTML = `
+      <div class="minimap-track" data-mm-track></div>
+      <div class="minimap-viewport" data-mm-viewport></div>
+    `;
+    shadow.appendChild(minimap);
+    wireMinimap(shadow);
+
     wirePanel(shadow);
     wireLightbox(shadow);
     wireSearch(shadow);
@@ -2199,6 +2313,7 @@
     fill.style.width = `${rounded}%`;
     bar.setAttribute("aria-valuenow", String(Math.round(rounded)));
     bar.setAttribute("data-visible", "1");
+    updateMinimapViewport();
   }
 
   function scheduleProgress() {
@@ -2299,6 +2414,7 @@
     tocEntries = entries;
     renderToc(entries);
     wireTocObserver(entries);
+    scheduleMinimapBuild();
     ensureReadingMeta();
     ensureCopyButtons();
     ensureImageEnhancements();
@@ -2481,6 +2597,7 @@
     if (id === tocActiveId) return;
     tocActiveId = id;
     refreshBookmarkMarks();
+    refreshMinimapActive();
     const root = document.querySelector(`[${ROOT_ATTR}]`);
     const links = root?.shadowRoot?.querySelectorAll(".toc-link");
     if (!links) return;
@@ -2718,6 +2835,7 @@
     } catch {
       /* ignore */
     }
+    scheduleMinimapBuild();
   }
 
   // ---- Note editor (annotations on highlights) --------------------------
@@ -3223,6 +3341,7 @@
     const root = document.querySelector(`[${ROOT_ATTR}]`);
     const toc = root?.shadowRoot?.querySelector(".toc");
     if (toc) toc.removeAttribute("data-visible");
+    hideMinimap();
     if (tocIO) { try { tocIO.disconnect(); } catch {} tocIO = null; }
     if (tocMO) { try { tocMO.disconnect(); } catch {} tocMO = null; }
     tocEntries = [];
@@ -3234,6 +3353,147 @@
     tocRebuildTimer = setTimeout(() => {
       if (state.enabled) buildToc();
     }, TOC_REBUILD_MS);
+  }
+
+  // ---- Mini-map scrollbar (headings + highlights) ------------------------
+  // A slim liquid-glass strip pinned to the right edge while reader mode is
+  // active. Headings render as ticks (h2 emphasised), highlights as colored
+  // dots, and the visible viewport is shown as a moving box. Click anywhere
+  // on the track to scroll the article to that position. Hidden when the
+  // viewport is narrow (mirrors TOC behaviour) or during print.
+  let minimapBuildTimer = 0;
+  let minimapWired = false;
+
+  function scheduleMinimapBuild() {
+    clearTimeout(minimapBuildTimer);
+    minimapBuildTimer = setTimeout(() => {
+      if (state.enabled) buildMinimap();
+    }, 80);
+  }
+
+  function getMinimapEls() {
+    const root = document.querySelector(`[${ROOT_ATTR}]`);
+    const shadow = root?.shadowRoot;
+    if (!shadow) return null;
+    const mm = shadow.querySelector(".minimap");
+    const track = shadow.querySelector("[data-mm-track]");
+    const vp = shadow.querySelector("[data-mm-viewport]");
+    if (!mm || !track || !vp) return null;
+    return { mm, track, vp };
+  }
+
+  function hideMinimap() {
+    const els = getMinimapEls();
+    if (!els) return;
+    els.mm.removeAttribute("data-visible");
+    els.track.textContent = "";
+    els.vp.style.height = "0";
+  }
+
+  function articleScrollMetrics() {
+    if (!articleEl || !articleEl.isConnected) return null;
+    const rect = articleEl.getBoundingClientRect();
+    const top = window.scrollY + rect.top;
+    const height = Math.max(1, rect.height);
+    return { top, height };
+  }
+
+  function buildMinimap() {
+    const els = getMinimapEls();
+    if (!els) return;
+    if (!state.enabled) { hideMinimap(); return; }
+    const metrics = articleScrollMetrics();
+    if (!metrics) { hideMinimap(); return; }
+    const { top: aTop, height: aHeight } = metrics;
+
+    const frag = document.createDocumentFragment();
+
+    // Headings → ticks. Use the entries we built for the TOC so the ordering
+    // and visibility filter matches exactly.
+    for (const entry of tocEntries) {
+      const el = entry.el;
+      if (!el || !el.isConnected) continue;
+      const r = el.getBoundingClientRect();
+      const y = window.scrollY + r.top - aTop;
+      const pct = Math.max(0, Math.min(100, (y / aHeight) * 100));
+      const tick = document.createElement("div");
+      tick.className = "minimap-tick";
+      tick.setAttribute("data-level", String(entry.level));
+      tick.setAttribute("data-toc-id", entry.id);
+      tick.style.top = `${pct}%`;
+      if (tocActiveId && entry.id === tocActiveId) tick.setAttribute("data-active", "1");
+      frag.appendChild(tick);
+    }
+
+    // Highlights → colored dots. Use the first <mark> for each entry.
+    const seen = new Set();
+    const marks = articleEl.querySelectorAll('mark[data-doc-reader-hl="1"]');
+    for (const m of marks) {
+      const id = m.getAttribute("data-doc-reader-hl-id");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const entry = highlightById.get(id);
+      const color = clampHighlightColor(entry?.color);
+      const r = m.getBoundingClientRect();
+      const y = window.scrollY + r.top - aTop;
+      const pct = Math.max(0, Math.min(100, (y / aHeight) * 100));
+      const dot = document.createElement("div");
+      dot.className = "minimap-hl";
+      dot.setAttribute("data-color", color);
+      dot.setAttribute("data-hl-id", id);
+      dot.style.top = `${pct}%`;
+      frag.appendChild(dot);
+    }
+
+    els.track.textContent = "";
+    els.track.appendChild(frag);
+    els.mm.setAttribute("data-visible", "1");
+    updateMinimapViewport();
+  }
+
+  function refreshMinimapActive() {
+    const els = getMinimapEls();
+    if (!els) return;
+    const ticks = els.track.querySelectorAll(".minimap-tick");
+    for (const t of ticks) {
+      if (tocActiveId && t.getAttribute("data-toc-id") === tocActiveId) t.setAttribute("data-active", "1");
+      else t.removeAttribute("data-active");
+    }
+  }
+
+  function updateMinimapViewport() {
+    const els = getMinimapEls();
+    if (!els) return;
+    if (!state.enabled) return;
+    const metrics = articleScrollMetrics();
+    if (!metrics) return;
+    const { top: aTop, height: aHeight } = metrics;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    const scroll = window.scrollY;
+    const startPct = Math.max(0, Math.min(100, ((scroll - aTop) / aHeight) * 100));
+    const endPct = Math.max(0, Math.min(100, ((scroll + vh - aTop) / aHeight) * 100));
+    const height = Math.max(2, endPct - startPct);
+    els.vp.style.top = `${startPct}%`;
+    els.vp.style.height = `${height}%`;
+  }
+
+  function onMinimapClick(e) {
+    const metrics = articleScrollMetrics();
+    if (!metrics) return;
+    const els = getMinimapEls();
+    if (!els) return;
+    const rect = els.track.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const target = metrics.top + ratio * metrics.height - (window.innerHeight || 0) / 2;
+    window.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+  }
+
+  function wireMinimap(shadow) {
+    if (minimapWired) return;
+    const mm = shadow.querySelector(".minimap");
+    if (!mm) return;
+    mm.addEventListener("click", onMinimapClick);
+    minimapWired = true;
   }
 
   function watchArticleForToc() {

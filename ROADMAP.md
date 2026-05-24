@@ -31,7 +31,7 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Export highlights + notes to Markdown
 - [x] Sync settings across browsers via chrome.storage.sync
 - [x] Per-article reading position resume
-- [ ] Mini-map scrollbar showing headings + highlights
+- [x] Mini-map scrollbar showing headings + highlights
 - [ ] Vim-style keyboard navigation (j/k/gg/G)
 - [ ] Spaced-repetition queue for bookmarked sections
 - [ ] Auto-link cross-references between MDN/React/Next.js terms
