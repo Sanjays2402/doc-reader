@@ -23,6 +23,12 @@
   const HISTORY_MAX = 20;
   const HIGHLIGHT_STORAGE_KEY = `${NS}:highlights`;
   const FOCUS_STORAGE_KEY = `${NS}:focus`;
+  // Per-article reading-position resume. Keyed by canonical URL, capped at
+  // RESUME_MAX entries (oldest pruned). Stored in local only — sync quota is
+  // too small for a long-tail URL map.
+  const RESUME_STORAGE_KEY = `${NS}:resume`;
+  const RESUME_MAX = 200;
+  const RESUME_MIN_Y = 200;
   // Keys mirrored across browsers via chrome.storage.sync. Bookmarks,
   // highlights, annotations, and history are intentionally excluded: they are
   // URL-bound content that easily blows past the per-item sync quota. Only
@@ -1775,7 +1781,10 @@
       startProgress();
       scheduleHighlightRestore();
       if (state.focus) startFocusMode();
+      startResumeTracking();
+      tryResumePosition();
     } else {
+      stopResumeTracking();
       stopProgress();
       stopFocusMode();
       hidePanel();
@@ -3318,6 +3327,104 @@
     const dt = (document.title || "").replace(/\s+/g, " ").trim();
     return dt || location.pathname || location.href;
   }
+  // ---- Per-article reading position resume -------------------------------
+  // Saves `{ y, sectionId, updatedAt }` per canonical URL while the reader is
+  // active. On the next visit (or next time reader is enabled) we restore
+  // the scroll position so users land where they left off. Save is debounced;
+  // restore is one-shot per page load and bails if the user has already
+  // scrolled, so we never yank them.
+  let resumeSaveTimer = 0;
+  let resumeSaveAttached = false;
+  let resumeApplied = false;
+
+  async function loadResumePosition() {
+    if (!state.supported) return null;
+    const key = canonicalUrlKey();
+    if (!key) return null;
+    try {
+      const got = await chrome.storage?.local?.get?.(RESUME_STORAGE_KEY);
+      const map = got?.[RESUME_STORAGE_KEY];
+      if (map && typeof map === "object" && map[key]) return map[key];
+    } catch { /* storage unavailable */ }
+    return null;
+  }
+
+  async function persistResumePosition(pos) {
+    if (!state.supported) return;
+    const key = canonicalUrlKey();
+    if (!key) return;
+    try {
+      const got = await chrome.storage?.local?.get?.(RESUME_STORAGE_KEY);
+      const map = (got && got[RESUME_STORAGE_KEY]) || {};
+      map[key] = pos;
+      const entries = Object.entries(map);
+      let next = map;
+      if (entries.length > RESUME_MAX) {
+        entries.sort((a, b) => (b[1]?.updatedAt || 0) - (a[1]?.updatedAt || 0));
+        next = Object.fromEntries(entries.slice(0, RESUME_MAX));
+      }
+      await chrome.storage?.local?.set?.({ [RESUME_STORAGE_KEY]: next });
+    } catch { /* ignore */ }
+  }
+
+  function scheduleResumeSave() {
+    if (!state.enabled) return;
+    if (resumeSaveTimer) clearTimeout(resumeSaveTimer);
+    resumeSaveTimer = setTimeout(() => {
+      resumeSaveTimer = 0;
+      if (!state.enabled) return;
+      const y = window.scrollY || 0;
+      if (y < RESUME_MIN_Y) return;
+      const pos = {
+        y,
+        sectionId: pickCurrentSectionId() || null,
+        updatedAt: Date.now(),
+      };
+      persistResumePosition(pos);
+    }, 1200);
+  }
+
+  function startResumeTracking() {
+    if (resumeSaveAttached) return;
+    window.addEventListener("scroll", scheduleResumeSave, { passive: true });
+    resumeSaveAttached = true;
+  }
+
+  function stopResumeTracking() {
+    if (!resumeSaveAttached) return;
+    window.removeEventListener("scroll", scheduleResumeSave);
+    resumeSaveAttached = false;
+    if (resumeSaveTimer) { clearTimeout(resumeSaveTimer); resumeSaveTimer = 0; }
+  }
+
+  async function tryResumePosition() {
+    if (resumeApplied) return;
+    if ((window.scrollY || 0) > RESUME_MIN_Y) { resumeApplied = true; return; }
+    const pos = await loadResumePosition();
+    if (!pos) return;
+    resumeApplied = true;
+    const apply = () => {
+      if ((window.scrollY || 0) > RESUME_MIN_Y) return;
+      let scrolled = false;
+      if (pos.sectionId) {
+        let el = null;
+        try { el = document.getElementById(pos.sectionId); } catch { el = null; }
+        if (el && typeof el.scrollIntoView === "function") {
+          try { el.scrollIntoView({ block: "start", behavior: "auto" }); scrolled = true; } catch { /* noop */ }
+        }
+      }
+      if (!scrolled && Number.isFinite(pos.y)) {
+        const max = Math.max(0, (document.documentElement.scrollHeight || 0) - (window.innerHeight || 0));
+        try { window.scrollTo(0, Math.min(pos.y, max)); } catch { /* noop */ }
+      }
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => setTimeout(apply, 80));
+    } else {
+      setTimeout(apply, 96);
+    }
+  }
+
   async function recordHistoryVisit() {
     if (!site || !state.supported) return;
     const url = canonicalUrlKey();
