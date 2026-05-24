@@ -4934,6 +4934,26 @@
     return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
   }
 
+  // ---- Vim-style navigation ------------------------------------------------
+  // j / k scroll the page; gg jumps top, Shift+G jumps bottom. Reader mode
+  // only. Smooth-scroll keeps motion consistent with the rest of the UI.
+  const VIM_SCROLL_STEP = 96;
+  const VIM_GG_TIMEOUT_MS = 600;
+  let vimGgPendingAt = 0;
+  function vimScrollBy(dy) {
+    try { window.scrollBy({ top: dy, left: 0, behavior: "smooth" }); }
+    catch { window.scrollBy(0, dy); }
+  }
+  function vimScrollTo(y) {
+    try { window.scrollTo({ top: y, left: 0, behavior: "smooth" }); }
+    catch { window.scrollTo(0, y); }
+  }
+  function vimDocBottom() {
+    const doc = document.documentElement;
+    const h = Math.max(doc?.scrollHeight || 0, document.body?.scrollHeight || 0);
+    return Math.max(0, h - (window.innerHeight || 0));
+  }
+
   function onKeyDown(e) {
     if (e.defaultPrevented) return;
     if (!state.supported) return;
@@ -5017,6 +5037,29 @@
 
     // [ and ] adjust max-width while reader mode is on. No shift.
     if (state.enabled && !e.shiftKey) {
+      // Vim-style navigation. j scrolls down a step, k scrolls up. gg (two
+      // quick g presses) jumps to the top of the document.
+      if (e.key === "j" || e.code === "KeyJ") {
+        e.preventDefault(); e.stopPropagation();
+        vimScrollBy(VIM_SCROLL_STEP);
+        return;
+      }
+      if (e.key === "k" || e.code === "KeyK") {
+        e.preventDefault(); e.stopPropagation();
+        vimScrollBy(-VIM_SCROLL_STEP);
+        return;
+      }
+      if (e.key === "g" || e.code === "KeyG") {
+        e.preventDefault(); e.stopPropagation();
+        const now = Date.now();
+        if (now - vimGgPendingAt <= VIM_GG_TIMEOUT_MS) {
+          vimGgPendingAt = 0;
+          vimScrollTo(0);
+        } else {
+          vimGgPendingAt = now;
+        }
+        return;
+      }
       if (e.key === "[" || e.code === "BracketLeft") {
         e.preventDefault();
         e.stopPropagation();
@@ -5115,6 +5158,13 @@
       e.preventDefault();
       e.stopPropagation();
       setFontSize(state.fontSize + FONT_STEP);
+      return;
+    }
+    // Shift + G jumps to the bottom of the document (vim-style).
+    if (state.enabled && e.shiftKey && (e.key === "G" || e.code === "KeyG")) {
+      e.preventDefault();
+      e.stopPropagation();
+      vimScrollTo(vimDocBottom());
       return;
     }
   }
