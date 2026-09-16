@@ -81,6 +81,16 @@
       <p class="settings-hint">Toggle Doc Reader off on sites you'd rather read raw.</p>
     </div>
     <ul id="site-list" class="site-list"></ul>
+    <div class="settings-head">
+      <h2 class="settings-title">Custom CSS</h2>
+      <p class="settings-hint">Reader-mode overrides for the site in the current tab<span id="css-site-label"></span>. Applied live while reader mode is on; synced across browsers.</p>
+    </div>
+    <textarea id="css-editor" class="css-editor" spellcheck="false" autocomplete="off" autocapitalize="off" rows="8" placeholder="/* Reader-mode overrides for this site */&#10;article { font-size: 1.1rem; }"></textarea>
+    <div class="css-actions">
+      <button id="css-save" class="css-btn css-btn-primary" type="button">Save CSS</button>
+      <button id="css-clear" class="css-btn" type="button">Clear</button>
+      <span id="css-status" class="css-status" aria-live="polite"></span>
+    </div>
   </section>
 
   <section id="review-view" class="content review" aria-label="Spaced-repetition review queue" hidden>

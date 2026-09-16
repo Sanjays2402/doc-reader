@@ -27,6 +27,95 @@ let history = [];
 let srMap = {};
 let currentView = "bookmarks"; // "bookmarks" | "settings" | "history" | "review"
 
+const CSS_KEY = "doc-reader:custom-css";
+/** @type {string|null} site id detected from the active tab, for the CSS editor */
+let cssSiteId = null;
+const cssEditor = /** @type {HTMLTextAreaElement|null} */ (document.getElementById("css-editor"));
+const cssSaveBtn = document.getElementById("css-save");
+const cssClearBtn = document.getElementById("css-clear");
+const cssStatus = document.getElementById("css-status");
+const cssSiteLabel = document.getElementById("css-site-label");
+
+// ---- Per-site custom CSS editor -------------------------------------------
+// Edits the `{ [siteId]: cssString }` map the content script injects into a
+// <style> tag while reader mode is active. The editor targets whichever
+// supported site is open in the active tab (activeTab grants us its URL
+// while the popup is open).
+function siteIdForHost(host) {
+  const match = sites.find((s) => (s.hosts || []).some((h) => host === h || host.endsWith("." + h)));
+  return match ? match.id : null;
+}
+
+async function detectCssSite() {
+  cssSiteId = null;
+  try {
+    if (!sites.length) await loadSites();
+    const tabs = await chrome.tabs?.query?.({ active: true, currentWindow: true });
+    const url = tabs?.[0]?.url || "";
+    const host = new URL(url).hostname;
+    cssSiteId = siteIdForHost(host);
+  } catch { /* unsupported tab (chrome://, new tab, …) */ }
+  if (cssSiteLabel) {
+    const site = sites.find((s) => s.id === cssSiteId);
+    cssSiteLabel.textContent = site ? ` (${site.label})` : " (no supported site in current tab)";
+  }
+}
+
+async function loadCssEditor() {
+  let css = "";
+  if (cssSiteId) {
+    try {
+      const got = await chrome.storage?.local?.get?.(CSS_KEY);
+      const map = got?.[CSS_KEY];
+      const v = map && typeof map === "object" ? map[cssSiteId] : "";
+      if (typeof v === "string") css = v;
+    } catch { /* noop */ }
+  }
+  if (cssEditor) {
+    cssEditor.value = css;
+    cssEditor.disabled = !cssSiteId;
+    cssEditor.placeholder = cssSiteId
+      ? "/* Reader-mode overrides for this site */\narticle { font-size: 1.1rem; }"
+      : "Open a supported docs tab to edit its CSS overrides.";
+  }
+  if (cssSaveBtn) cssSaveBtn.disabled = !cssSiteId;
+  if (cssClearBtn) cssClearBtn.disabled = !cssSiteId;
+}
+
+async function renderCustomCss() {
+  await detectCssSite();
+  await loadCssEditor();
+}
+
+function setCssStatus(msg) {
+  if (!cssStatus) return;
+  cssStatus.textContent = msg;
+  clearTimeout(setCssStatus._t);
+  setCssStatus._t = setTimeout(() => { if (cssStatus) cssStatus.textContent = ""; }, 1600);
+}
+
+async function persistCustomCss(css) {
+  if (!cssSiteId) return;
+  try {
+    const got = await chrome.storage?.local?.get?.(CSS_KEY);
+    const map = (got?.[CSS_KEY] && typeof got[CSS_KEY] === "object") ? { ...got[CSS_KEY] } : {};
+    if (css.trim()) map[cssSiteId] = css;
+    else delete map[cssSiteId];
+    await chrome.storage?.local?.set?.({ [CSS_KEY]: map });
+    // Mirror to sync like the other small per-host preference maps.
+    try { await chrome.storage?.sync?.set?.({ [CSS_KEY]: map }); } catch { /* quota / unavailable */ }
+    setCssStatus(css.trim() ? "Saved — applies live" : "Cleared");
+  } catch {
+    setCssStatus("Save failed");
+  }
+}
+
+cssSaveBtn?.addEventListener("click", () => persistCustomCss(cssEditor?.value ?? ""));
+cssClearBtn?.addEventListener("click", () => {
+  if (cssEditor) cssEditor.value = "";
+  void persistCustomCss("");
+});
+
 const root = document.getElementById("root");
 const settingsView = document.getElementById("settings-view");
 const siteListEl = document.getElementById("site-list");
@@ -312,7 +401,7 @@ function setView(view) {
     reviewBtn.setAttribute("aria-pressed", showReview ? "true" : "false");
     reviewBtn.title = showReview ? "Close review queue" : "Review queue";
   }
-  if (showSettings) renderSites();
+  if (showSettings) { renderSites(); void renderCustomCss(); }
   else if (showHistory) renderHistory();
   else if (showReview) renderReview();
   else render();

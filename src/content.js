@@ -23,6 +23,10 @@
   const HISTORY_MAX = 20;
   const HIGHLIGHT_STORAGE_KEY = `${NS}:highlights`;
   const FOCUS_STORAGE_KEY = `${NS}:focus`;
+  // Per-site custom CSS overrides. `{ [siteId]: cssString }`, injected into a
+  // <style> tag while reader mode is active. Mirrored to sync like the other
+  // small per-host preference maps.
+  const CSS_STORAGE_KEY = `${NS}:custom-css`;
   // Per-article reading-position resume. Keyed by canonical URL, capped at
   // RESUME_MAX entries (oldest pruned). Stored in local only — sync quota is
   // too small for a long-tail URL map.
@@ -42,6 +46,7 @@
     FAMILY_STORAGE_KEY,
     SYNTAX_STORAGE_KEY,
     FOCUS_STORAGE_KEY,
+    CSS_STORAGE_KEY,
   ];
   const FOCUS_ATTR = `data-${NS}-focus`;
   const FOCUS_TARGET_ATTR = `data-${NS}-focus-target`;
@@ -252,6 +257,51 @@
       siteAllowed = allowed;
       state.supported = !!site && siteAllowed;
       if (!allowed && state.enabled) setEnabled(false, { flash: false });
+    });
+  } catch { /* noop */ }
+
+  // ---- Custom CSS injection (per-site overrides) --------------------------
+  // The popup settings panel edits a `{ [siteId]: cssString }` map stored
+  // under CSS_STORAGE_KEY (also mirrored to chrome.storage.sync). We inject
+  // the CSS for the current site into a <style> tag while reader mode is
+  // active, so users can override any of our reader styling per site. The
+  // tag is removed again when reader mode turns off, and live edits apply
+  // immediately via the storage listener below.
+  const CUSTOM_STYLE_ATTR = `data-${NS}-custom-css`;
+  let customCss = "";
+  async function loadCustomCss() {
+    if (!site) { customCss = ""; return; }
+    try {
+      const got = await chrome.storage?.local?.get?.(CSS_STORAGE_KEY);
+      const map = got?.[CSS_STORAGE_KEY];
+      const css = map && typeof map === "object" ? map[site.id] : "";
+      customCss = typeof css === "string" ? css : "";
+    } catch { customCss = ""; }
+  }
+  function applyCustomCss() {
+    try {
+      let el = document.querySelector(`style[${CUSTOM_STYLE_ATTR}]`);
+      if (!state.enabled || !customCss) {
+        el?.remove();
+        return;
+      }
+      if (!el) {
+        el = document.createElement("style");
+        el.setAttribute(CUSTOM_STYLE_ATTR, "");
+        (document.head || document.documentElement).appendChild(el);
+      }
+      el.textContent = customCss;
+    } catch { /* noop */ }
+  }
+  void loadCustomCss().then(() => applyCustomCss());
+  // React to live edits from the popup so saved CSS applies immediately.
+  try {
+    chrome.storage?.onChanged?.addListener?.((changes, area) => {
+      if (area !== "local" || !site || !changes[CSS_STORAGE_KEY]) return;
+      const map = changes[CSS_STORAGE_KEY].newValue || {};
+      const css = map[site.id];
+      customCss = typeof css === "string" ? css : "";
+      applyCustomCss();
     });
   } catch { /* noop */ }
 
@@ -1989,6 +2039,7 @@
       root.removeAttribute("hidden");
       stripNoise();
       applySingleColumn();
+      applyCustomCss();
       syncPanel();
       buildToc();
       watchArticleForToc();
@@ -2008,6 +2059,7 @@
       clearAllHighlightMarks();
       restoreSingleColumn();
       restoreNoise();
+      applyCustomCss();
       document.documentElement.classList.remove(ACTIVE_CLASS);
       applyTheme();
       // Keep the shadow host mounted; hide so future features can reuse it.

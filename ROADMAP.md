@@ -36,4 +36,4 @@ This file is the agent's task queue. Unchecked items get implemented in order. W
 - [x] Spaced-repetition queue for bookmarked sections
 - [x] Auto-link cross-references between MDN/React/Next.js terms
 - [x] Inline glossary tooltips for technical terms on hover
-- [ ] Custom CSS injection panel (per-site overrides)
+- [x] Custom CSS injection panel (per-site overrides)

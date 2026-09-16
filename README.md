@@ -26,6 +26,22 @@ Then in Chrome: `chrome://extensions` → Developer mode → "Load unpacked" →
 - `https://tailwindcss.com/docs/*`
 - `https://nextjs.org/docs/*`
 
+## Features
+
+### Custom CSS overrides (per site)
+
+Open the popup → Settings → **Custom CSS** to inject your own CSS while reader
+mode is on. The editor targets the supported site in the current tab, saved CSS
+applies live to open tabs, and overrides follow you across signed-in browsers
+via `chrome.storage.sync`. Clear the field and hit **Save CSS** to remove the
+override for a site.
+
+```css
+/* Example: tighter measure on MDN */
+article { max-width: 62ch !important; }
+code { font-size: 0.92em; }
+```
+
 ## Roadmap
 
 - [ ] MV3 manifest + content script scaffolding
